@@ -7,6 +7,7 @@
 class UCanvasPanel;
 class UButton;
 class UTextBlock;
+class USTSCardWidget;
 UCLASS()
 class STS_API USTSUserWidget : public UUserWidget
 {
@@ -25,12 +26,14 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* EnergyText;
 
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* BlockText;
 	// 카드 위젯 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "STS")
 	TSubclassOf<UUserWidget> CardWidgetClass;
-	//UPROPERTY()
-	TArray<UUserWidget*> CreatedCards;
-	
+	UPROPERTY()
+	TArray<USTSCardWidget*> CreatedCards;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	UDataTable* CardDataTable;
 
@@ -47,6 +50,7 @@ public:
 	void UpdateCardLayout();
 	
 	void EmptyHand();
-
+	void UpdateEnergyText(int32 CurrentEnergy, int32 MaxEnergy);
+	void UpdateBlockText(int32 CurrentBlock);
 
 };

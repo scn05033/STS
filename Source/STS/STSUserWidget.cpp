@@ -15,74 +15,51 @@
 #include "DrawDebugHelpers.h"
 #include "GameFramework/PlayerController.h" 
 #include "Engine/World.h"
-void USTSUserWidget::AddCards(int32 NumCards)
+
+void USTSUserWidget::AddCards(int32 Amount)
 {
-  
+    
+    ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 
+    // 필수 데이터가 없으면 중단
+    if (!GM || !CardDataTable || !CardWidgetClass) return;
 
-    if (!CardWidgetClass || !CardDataTable) return; // 데이터 테이블 없을 때 튕겨내기
-    UE_LOG(LogTemp, Warning, TEXT("AddCards 호출됨! 장수: %d"), NumCards);
-
-    if (!CardWidgetClass)
+    for (int32 i = 0; i < Amount; ++i)
     {
-        // 클래스 누락 확인
-        UE_LOG(LogTemp, Error, TEXT("CardWidgetClass가 비어있습니다! 블루프린트 확인하세요."));
-        return;
-    }
-    if (!CardDataTable)
-    {
-        // 테이블 누락 확인
-        UE_LOG(LogTemp, Error, TEXT("CardDataTable이 비어있습니다! 블루프린트 확인하세요."));
-        return;
-    }
+        // 덱에서 카드 1장 달라고 요청
+        FName DrawnCardName = GM->DrawCard();
 
-
-    // 데이터 테이블의 모든 행 이름 가져오기
-    TArray<FName> RowNames = CardDataTable->GetRowNames();
-
-    // 데이터가 하나도 없을 때 튕겨내기
-    if (RowNames.Num() == 0) return;
-
-
-    // 카드 생성 반복문
-    for (int32 i = 0; i < NumCards; i++)
-    {
-        
-
-        // 랜덤으로 이름 하나 뽑기
-        int32 RandomIndex = FMath::RandRange(0, RowNames.Num() - 1);
-        FName SelectedRowName = RowNames[RandomIndex];
-
-        // 그 이름으로 데이터 구조체 찾기 
-        // ContextString은 에러 났을 때 로그에 찍힐 메시지.
-        static const FString ContextString(TEXT("Card Allocation"));
-        FCardData* CardData = CardDataTable->FindRow<FCardData>(SelectedRowName, ContextString);
-
-        // 위젯 생성
-        UUserWidget* NewWidget = CreateWidget<UUserWidget>(GetOwningPlayer(), CardWidgetClass);
-
-        USTSCardWidget* NewCard = Cast<USTSCardWidget>(NewWidget);
-        
-        if (NewCard && HandAreaPanel && CardData)
+        // 받을 카드가 없으면 뽑기 중단
+        if (DrawnCardName == NAME_None)
         {
-            UE_LOG(LogTemp, Warning, TEXT("카드 생성 성공! 이름: %s"), *CardData->CardName.ToString());
-            NewCard->UpdateCardDesign(*CardData);
-            HandAreaPanel->AddChild(NewCard);
-            CreatedCards.Add(NewCard); 
+            break;
         }
-        else {
-            if (!NewCard)
-                UE_LOG(LogTemp, Error, TEXT("실패 원인: NewCard가 null입니다. (형변환 실패)"));
 
-            if (!HandAreaPanel)
-                UE_LOG(LogTemp, Error, TEXT("실패 원인: HandAreaPanel이 null입니다. (BindWidget 실패)"));
+        // 받은 이름표(RowName)로 데이터테이블에서 실제 카드 데이터 찾기
+        static const FString ContextString(TEXT("Draw Card Context"));
+        //FCardData* CardData = CardDataTable->FindRow<FCardData>(DrawnCardName, ContextString);
+        FCardData* CardData = CardDataTable->FindRow<FCardData>(DrawnCardName, TEXT("Draw Card Context"));
+        if (CardData)
+        {
+            // 카드 위젯 생성 및 데이터 주입 (기존과 동일)
+            USTSCardWidget* NewCard = CreateWidget<USTSCardWidget>(GetOwningPlayer(), CardWidgetClass);
+            if (NewCard)
+            {
+                // 방금 뽑은 카드가 뭔지 로그로 확인
+                UE_LOG(LogTemp, Log, TEXT("드로우: %s"), *CardData->CardName.ToString());
 
-            if (!CardData)
-                UE_LOG(LogTemp, Error, TEXT("실패 원인: CardData가 null입니다. (데이터 못 찾음)"));
+                NewCard->CardRowName = DrawnCardName;
+
+                NewCard->UpdateCardDesign(*CardData);
+
+                // 손패 패널에 추가하고 배열에 관리
+                HandAreaPanel->AddChild(NewCard);
+                CreatedCards.Add(NewCard);
+            }
         }
     }
 
-    // 카드 줄 세우기
+    // 손패 예쁘게 정렬
     UpdateCardLayout();
 }
 void USTSUserWidget::UpdateCardLayout()
@@ -152,26 +129,44 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
         FVector TraceStart = WorldLocation;
         FVector TraceEnd = WorldLocation + (WorldDirection * 50000.0f); // 50000cm(500m) 만큼 멀리 쏨
 
+        //플레이어 자신은 무시
+        FCollisionQueryParams QueryParams;
+        QueryParams.AddIgnoredActor(GetOwningPlayerPawn());
+
         // Visibility 채널을 검사
         bool bHit = GetWorld()->LineTraceSingleByChannel(
             HitResult,
             TraceStart,
             TraceEnd,
-            ECC_Visibility
+            ECC_Visibility,
+            QueryParams
         );
 
         // 결과 확인
         if (bHit && HitResult.GetActor())
         {
-            // 디버그용: 맞은 위치에 초록색 점 찍기 (3초간 유지)
-            DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 20.0f, FColor::Green, false, 3.0f);
-            UE_LOG(LogTemp, Warning, TEXT("레이저 적중! 대상: %s"), *HitResult.GetActor()->GetName());
+            // 맞은 위치에 하늘색 점과 선 그리기
+            DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 30.0f, FColor::Cyan, false, 10.0f, 0); // 점 크기 30
+            DrawDebugLine(GetWorld(), TraceStart, HitResult.ImpactPoint, FColor::Cyan, false, 10.0f, 0, 5.0f); // 선 두께 5 
 
+            UE_LOG(LogTemp, Warning, TEXT("레이저 적중! 대상: %s (컴포넌트: %s)"),
+                *HitResult.GetActor()->GetName(), *HitResult.GetComponent()->GetName());
             // 적 태그 확인
             if (HitResult.GetActor()->ActorHasTag("Enemy"))
             {
                 // 카드 데이터 가져오기
                 FCardData CardData = DroppedCard->GetCardData();
+
+                ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+                if (!GM) return false;
+
+                // 에너지 사용 시도
+                if (!GM->TryUseEnergy(CardData.CostText))
+                {
+                    // 에너지가 부족하면 실패! (카드는 다시 손패로 돌아감)
+                    UE_LOG(LogTemp, Error, TEXT("❌ 에너지가 부족합니다! (필요: %d, 현재: %d)"), CardData.CostText, GM->CurrentEnergy);
+                    return false;
+                }
 
                 // 카드의 종류(Type)에 따라 분기 처리
                 // (CSV 데이터테이블에 'Attack', 'Skill' 등으로 적혀있어야 함)
@@ -180,7 +175,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
                 {
                     // === [공격 로직] ===
                     UE_LOG(LogTemp, Warning, TEXT("⚔️ 공격 카드 발동! 데미지: %d"), CardData.BaseDamage);
-
+                    UGameplayStatics::ApplyDamage(HitResult.GetActor(), CardData.BaseDamage, GetOwningPlayer(), GetOwningPlayerPawn(), UDamageType::StaticClass());
                     // 언리얼 내장 함수로 적에게 데미지 전달!
                     UGameplayStatics::ApplyDamage(
                         HitResult.GetActor(),     // 맞는 놈 (적)
@@ -189,21 +184,26 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
                         GetOwningPlayerPawn(),    // 때린 놈의 몸체 (캐릭터)
                         UDamageType::StaticClass() // 데미지 유형 (일반)
                     );
+
+                    
                 }
-                else if (CardData.Type == FName("Skill"))
+                else if (CardData.Type == FName("Defend"))
                 {
                     // === [스킬/방어 로직] ===
                     // 수비 카드는 적에게 던져도 효과는 '나'한테 적용되어야 함
-                    UE_LOG(LogTemp, Warning, TEXT("🛡️ 스킬 카드 발동! 방어도: %d"), CardData.BaseBlock);
-
+                    UE_LOG(LogTemp, Warning, TEXT("방어 카드 발동! 방어도: %d"), CardData.BaseBlock);
+                    GM->AddBlock(CardData.BaseBlock);
                     // TODO: 나중에 플레이어 캐릭터의 'AddBlock()' 함수를 호출할 예정
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("❓ 알 수 없는 카드 타입: %s"), *CardData.Type.ToString());
+                    UE_LOG(LogTemp, Warning, TEXT("알 수 없는 카드 타입: %s"), *CardData.Type.ToString());
                 }
 
-                // 카드 삭제 및 정리
+
+                GM->AddToDiscardPile(DroppedCard->CardRowName);
+
+                //카드 삭제 및 정리
                 DroppedCard->RemoveFromParent();
                 CreatedCards.Remove(DroppedCard);
                 UpdateCardLayout();
@@ -218,7 +218,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
         else
         {
             // 허공에 쏘면 빨간 선 그리기 (어디로 날아가는지 눈으로 확인)
-            DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Red, false, 3.0f);
+            DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Magenta, false, 10.0f, 0, 5.0f); // 선 두께 5            
             UE_LOG(LogTemp, Error, TEXT("[실패] 레이저가 허공을 갈랐습니다. (Collision 설정을 다시 확인하세요)"));
         }
     }
@@ -253,19 +253,47 @@ void USTSUserWidget::OnTurnEndClicked()
 
 void USTSUserWidget::EmptyHand()
 {
-    // 1. 화면에서 지우기
-    for (UUserWidget* Card : CreatedCards)
+    ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+    
+    //화면에 있는 모든 카드를 순회
+    for (USTSCardWidget* Card : CreatedCards)
     {
         if (Card)
         {
+            // 카드를 화면에서 지우기 전에 무덤으로 보냄!
+            if (GM)
+            {
+                GM->AddToDiscardPile(Card->CardRowName);
+            }
+
             Card->RemoveFromParent();
         }
     }
 
-    // 2. 관리 목록(배열) 비우기
+    // 관리 목록(배열) 비우기
     CreatedCards.Empty();
 
     UE_LOG(LogTemp, Log, TEXT("손패를 모두 버렸습니다."));
+}
+
+void USTSUserWidget::UpdateEnergyText(int32 CurrentEnergy, int32 MaxEnergy)
+{
+    if (EnergyText)
+    {
+        // "에너지: 2 / 3" 형태로 텍스트 변경
+        FString NewText = FString::Printf(TEXT("에너지: %d / %d"), CurrentEnergy, MaxEnergy);
+        EnergyText->SetText(FText::FromString(NewText));
+    }
+}
+
+void USTSUserWidget::UpdateBlockText(int32 CurrentBlock)
+{
+    if (BlockText)
+    {
+        // 방어도가 0이면 숨기거나 "방어도: 0"으로 표시
+        FString NewText = FString::Printf(TEXT("방어도: %d"), CurrentBlock);
+        BlockText->SetText(FText::FromString(NewText));
+    }
 }
 
 

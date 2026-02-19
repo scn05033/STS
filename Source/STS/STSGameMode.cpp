@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "STSGameMode.h"
 #include "STSUserWidget.h"
@@ -14,15 +14,16 @@ ASTSGameMode::ASTSGameMode()
         DefaultPawnClass = PlayerPawnBPClass.Class;
     }
 
-    // �⺻�� ����
+    // 기본값 설정
     CurrentTurnState = ETurnState::PlayerTurn;
 }
 
 void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
 {
-    UE_LOG(LogTemp, Warning, TEXT("=== ���� ����! (Start Combat) ==="));
+    UE_LOG(LogTemp, Warning, TEXT("=== 전투 시작! (Start Combat) ==="));
 	MainUIWidget = InUIWidget;
     TurnNumber = 1;
+    InitializeDeck();
     StartPlayerTurn();
 }
 
@@ -30,31 +31,39 @@ void ASTSGameMode::StartPlayerTurn()
 {
     
     CurrentTurnState = ETurnState::PlayerTurn;
-    UE_LOG(LogTemp, Warning, TEXT(">>> turn start!"), TurnNumber);
+
+    CurrentEnergy = MaxEnergy;
+    CurrentBlock = 0;
+
+  
 
 	  
-    // TODO: ���⼭ UI���� "ī�� 5�� �̾�"��� �����ؾ� ��
+    
     if (MainUIWidget)
     {
         MainUIWidget->AddCards(5);
+
+        // UI 수치 초기화 갱신
+        MainUIWidget->UpdateEnergyText(CurrentEnergy, MaxEnergy);
+        MainUIWidget->UpdateBlockText(CurrentBlock);
 	}
 
-    // TODO: ������(����) �ʱ�ȭ
+  
 }
 
 void ASTSGameMode::EndPlayerTurn()
 {
-    // �÷��̾� ���� �ƴ� �� ��ư ������ ����
+    // 플레이어 턴이 아닐 때 버튼 누르면 무시
     if (CurrentTurnState != ETurnState::PlayerTurn) return;
 
-    UE_LOG(LogTemp, Warning, TEXT("<<< �÷��̾� �� ����. ���и� �����ϴ�."));
+    UE_LOG(LogTemp, Warning, TEXT("<<< 플레이어 턴 종료. 손패를 버립니다."));
 
-    // TODO: ���⼭ UI���� "���� �� ����"��� �����ؾ� ��
+    // TODO: 여기서 UI에게 "손패 다 버려"라고 명령해야 함
     if (MainUIWidget)
     {
         MainUIWidget->EmptyHand();
     }
-    // �ٷ� �� ������ �ѱ�
+    // 바로 적 턴으로 넘김
     StartEnemyTurn();
 }
 
@@ -63,15 +72,150 @@ void ASTSGameMode::StartEnemyTurn()
     CurrentTurnState = ETurnState::EnemyTurn;
     UE_LOG(LogTemp, Warning, TEXT("!!! enemy turn start !!!"));
 
-    // ���� �ൿ�� �ð��� �� �ɷ��� �� (����)
-    // 2�� �ڿ� �ٽ� �÷��̾� ������ �ѱ�� Ÿ�̸� ����
+    // 적의 행동은 시간이 좀 걸려야 함 (연출)
+    // 2초 뒤에 다시 플레이어 턴으로 넘기는 타이머 설정
     FTimerHandle TimerHandle;
     GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
         {
-            UE_LOG(LogTemp, Warning, TEXT("!!! enemy turn end ."));
+            UE_LOG(LogTemp, Warning, TEXT("!!! [적 턴] 적이 강하게 공격합니다! (데미지: 10)"));
+            TakePlayerDamage(10);
 
-            TurnNumber++; // �� �� ����
-            StartPlayerTurn(); // �ٽ� �÷��̾� ������! (����)
+            TurnNumber++; // 턴 수 증가
+            StartPlayerTurn(); // 다시 플레이어 턴으로! (루프)
 
         }, 2.0f, false);
+
+
+}
+
+bool ASTSGameMode::TryUseEnergy(int32 Amount)
+{
+    if (CurrentEnergy >= Amount)
+    {
+        CurrentEnergy -= Amount;
+
+        if (MainUIWidget)
+        {
+            MainUIWidget->UpdateEnergyText(CurrentEnergy, MaxEnergy);
+        }
+
+        return true; // 사용 성공
+    }
+    return false; // 에너지 부족
+}
+
+void ASTSGameMode::AddBlock(int32 Amount)
+{
+    CurrentBlock += Amount;
+
+    if (MainUIWidget)
+    {
+        MainUIWidget->UpdateBlockText(CurrentBlock);
+    }
+   // UE_LOG(LogTemp, Warning, TEXT(" 방어도 획득: %d (현재 총 방어도: %d)"), Amount, CurrentBlock);
+}
+
+void ASTSGameMode::InitializeDeck()
+{
+    //비우고 시작
+    DrawPile.Empty();
+    DiscardPile.Empty();
+
+    // 기본 타격 5장, 수비 5장을 넣는다고 가정
+    for (int i = 0; i < 5; ++i)
+    {
+        DrawPile.Add(FName("STRIKE_BASIC")); 
+        DrawPile.Add(FName("DEFEND_BASIC")); 
+    }
+
+    // 덱 섞기 (언리얼 배열의 스왑 기능 활용)
+    const int32 NumCards = DrawPile.Num();
+    for (int32 i = 0; i < NumCards - 1; ++i)
+    {
+        int32 SwapIdx = FMath::RandRange(i, NumCards - 1);
+        DrawPile.Swap(i, SwapIdx);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("덱 초기화 및 셔플 완료! 총 %d장"), DrawPile.Num());
+}
+
+void ASTSGameMode::AddToDiscardPile(FName CardRowName)
+{
+    DiscardPile.Add(CardRowName);
+    UE_LOG(LogTemp, Log, TEXT("무덤으로 감: %s (현재 무덤: %d장)"), *CardRowName.ToString(), DiscardPile.Num());
+}
+
+FName ASTSGameMode::DrawCard()
+{
+    // 덱이 비어있는지 확인
+    if (DrawPile.IsEmpty())
+    {
+        // 무덤도 비어있으면 줄 카드가 없음 (탈진 상태)
+        if (DiscardPile.IsEmpty())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("덱과 무덤이 모두 비어있습니다!"));
+            return NAME_None;
+        }
+
+        // 무덤의 카드를 덱으로 모두 가져오고 무덤 비우기
+        DrawPile = DiscardPile;
+        DiscardPile.Empty();
+
+        // 덱 섞기 (셔플)
+        const int32 NumCards = DrawPile.Num();
+        for (int32 i = 0; i < NumCards - 1; ++i)
+        {
+            int32 SwapIdx = FMath::RandRange(i, NumCards - 1);
+            DrawPile.Swap(i, SwapIdx);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("덱이 다 떨어져서 무덤을 섞어 새로운 덱을 만들었습니다!"));
+    }
+
+    // 덱의 맨 위(배열의 마지막 요소)를 빼서(Pop) 반환합니다.
+    return DrawPile.Pop();
+}
+
+void ASTSGameMode::TakePlayerDamage(int32 Damage)
+{
+    int32 ActualDamage = Damage;
+
+    // 방어도가 있다면 먼저 깎기
+    if (CurrentBlock > 0)
+    {
+        if (CurrentBlock >= ActualDamage)
+        {
+            // 방어도가 충분해서 다 막음
+            CurrentBlock -= ActualDamage;
+            ActualDamage = 0;
+            UE_LOG(LogTemp, Warning, TEXT("방어도로 완벽히 막았습니다! (남은 방어도: %d)"), CurrentBlock);
+        }
+        else
+        {
+            // 방어도가 깨지고 데미지가 관통함
+            ActualDamage -= CurrentBlock;
+            UE_LOG(LogTemp, Warning, TEXT("방어도가 파괴되고, %d의 피해가 관통했습니다!"), ActualDamage);
+            CurrentBlock = 0;
+        }
+    }
+
+    // 남은 데미지를 체력에서 깎기
+    if (ActualDamage > 0)
+    {
+        CurrentHealth -= ActualDamage;
+        UE_LOG(LogTemp, Error, TEXT("플레이어가 %d의 피해를 입었습니다! (남은 체력: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
+
+        if (CurrentHealth <= 0)
+        {
+            CurrentHealth = 0;
+            UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
+            // TODO: 나중에 패배 UI 띄우기
+        }
+    }
+
+    // UI에 바뀐 방어도/체력 알려주기
+    if (MainUIWidget)
+    {
+        MainUIWidget->UpdateBlockText(CurrentBlock);
+        // TODO: MainUIWidget->UpdatePlayerHPText(CurrentHealth, MaxHealth); (나중에 플레이어 HP UI 만들면 주석 해제)
+    }
 }

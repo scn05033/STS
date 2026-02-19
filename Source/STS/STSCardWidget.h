@@ -46,6 +46,8 @@ protected:
 
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
+ 
+
 public:
     // 데이터를 받아서 UI를 갱신하는 함수
     void UpdateCardDesign(const FCardData& Data);
@@ -53,4 +55,6 @@ public:
     FText GetCardNameText() const;
 
     FCardData GetCardData() const { return CurrentCardData; }
+
+    FName CardRowName;
 };

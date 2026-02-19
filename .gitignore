@@ -35,3 +35,13 @@ Content/templesofcambodia/
 # 🔴 라이트 빌드 데이터(다시 만들 수 있으니 제외)
 Content/Main_BuiltData.uasset
 *_BuiltData.uasset
+
+/Content/__ExternalActors__/
+/Content/__ExternalObjects__/
+
+/Intermediate/
+/Saved/
+/MigrationReports/
+/Saved/Logs/
+
+UpdateLog*
