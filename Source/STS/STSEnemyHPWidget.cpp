@@ -14,3 +14,11 @@ void USTSEnemyHPWidget::UpdateHP(float CurrentHP, float MaxHP)
 		HPText->SetText(FText::FromString(FString::Printf(TEXT("%.0f / %.0f"), CurrentHP, MaxHP)));
 	}
 }
+
+void USTSEnemyHPWidget::UpdateIntentText(FString NewIntentText)
+{
+	if (IntentText)
+	{
+		IntentText->SetText(FText::FromString(NewIntentText));
+	}
+}

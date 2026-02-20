@@ -2,7 +2,7 @@
 
 #include "STSGameMode.h"
 #include "STSUserWidget.h"
-
+#include "STSEnemyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
 ASTSGameMode::ASTSGameMode()
@@ -23,6 +23,13 @@ void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
     UE_LOG(LogTemp, Warning, TEXT("=== 전투 시작! (Start Combat) ==="));
 	MainUIWidget = InUIWidget;
     TurnNumber = 1;
+
+    // 전투 시작 시 플레이어 체력바 꽉 채워주기
+    if (MainUIWidget)
+    {
+        MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
+    }
+
     InitializeDeck();
     StartPlayerTurn();
 }
@@ -35,7 +42,13 @@ void ASTSGameMode::StartPlayerTurn()
     CurrentEnergy = MaxEnergy;
     CurrentBlock = 0;
 
-  
+	//턴이 시작되면 적에게 다음 행동을 결정하라고 명령
+    AActor* FoundEnemy = UGameplayStatics::GetActorOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass());
+    if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(FoundEnemy))
+    {
+        Enemy->DecideNextIntent();
+    }
+
 
 	  
     
@@ -77,8 +90,12 @@ void ASTSGameMode::StartEnemyTurn()
     FTimerHandle TimerHandle;
     GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
         {
-            UE_LOG(LogTemp, Warning, TEXT("!!! [적 턴] 적이 강하게 공격합니다! (데미지: 10)"));
-            TakePlayerDamage(10);
+			// 적이 공격합니다!
+            AActor* FoundEnemy = UGameplayStatics::GetActorOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass());
+            if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(FoundEnemy))
+            {
+                Enemy->ExecuteIntent(this); 
+            }
 
             TurnNumber++; // 턴 수 증가
             StartPlayerTurn(); // 다시 플레이어 턴으로! (루프)
@@ -207,8 +224,22 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
         if (CurrentHealth <= 0)
         {
             CurrentHealth = 0;
+            //UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
+            
+        }
+        //ui 갱신
+        if (MainUIWidget)
+        {
+            MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
+        }
+        // 사망 처리
+        if (CurrentHealth <= 0)
+        {
             UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
-            // TODO: 나중에 패배 UI 띄우기
+            if (MainUIWidget)
+            {
+                MainUIWidget->ShowGameOver(); // 게임 오버 화면 띄우기
+            }
         }
     }
 
@@ -216,6 +247,6 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
     if (MainUIWidget)
     {
         MainUIWidget->UpdateBlockText(CurrentBlock);
-        // TODO: MainUIWidget->UpdatePlayerHPText(CurrentHealth, MaxHealth); (나중에 플레이어 HP UI 만들면 주석 해제)
+        //MainUIWidget->UpdatePlayerHPText(CurrentHealth, MaxHealth); (나중에 플레이어 HP UI 만들면 주석 해제)
     }
 }

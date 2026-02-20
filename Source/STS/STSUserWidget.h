@@ -8,6 +8,8 @@ class UCanvasPanel;
 class UButton;
 class UTextBlock;
 class USTSCardWidget;
+class UProgressBar;
+
 UCLASS()
 class STS_API USTSUserWidget : public UUserWidget
 {
@@ -37,6 +39,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
 	UDataTable* CardDataTable;
 
+	// UI 에디터의 체력바와 텍스트
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* PlayerHPBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* PlayerHPText;
+
+	// 게임 오버 패널 
+	UPROPERTY(meta = (BindWidget))
+	class UCanvasPanel* GameOverPanel;
+
 	
 
 	UFUNCTION()
@@ -52,5 +65,11 @@ public:
 	void EmptyHand();
 	void UpdateEnergyText(int32 CurrentEnergy, int32 MaxEnergy);
 	void UpdateBlockText(int32 CurrentBlock);
+
+	// 플레이어 체력 갱신 함수
+	void UpdatePlayerHP(int32 CurrentHP, int32 MaxHP);
+
+	// 게임 오버 연출 함수
+	void ShowGameOver();
 
 };

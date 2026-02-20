@@ -12,6 +12,7 @@
 #include "STSGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "CardDataStruct.h"
+#include "Components/ProgressBar.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/PlayerController.h" 
 #include "Engine/World.h"
@@ -294,6 +295,41 @@ void USTSUserWidget::UpdateBlockText(int32 CurrentBlock)
         FString NewText = FString::Printf(TEXT("방어도: %d"), CurrentBlock);
         BlockText->SetText(FText::FromString(NewText));
     }
+}
+
+void USTSUserWidget::UpdatePlayerHP(int32 CurrentHP, int32 MaxHP)
+{
+    UE_LOG(LogTemp, Warning, TEXT("UI 체력 업데이트 요청됨! - 현재: %d / 최대: %d"), CurrentHP, MaxHP);
+    if (PlayerHPBar && MaxHP > 0)
+    {
+        float Percent = (float)CurrentHP / (float)MaxHP;
+        PlayerHPBar->SetPercent(Percent);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("PlayerHPBar 위젯을 찾을 수 없습니다! (이름이나 변수 체크 확인)"));
+    }
+    if (PlayerHPText)
+    {
+        FString HPString = FString::Printf(TEXT("%d / %d"), CurrentHP, MaxHP);
+        PlayerHPText->SetText(FText::FromString(HPString));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("PlayerHPText 위젯을 찾을 수 없습니다!"));
+    }
+}
+
+void USTSUserWidget::ShowGameOver()
+{
+    if (GameOverPanel)
+    {
+        // 숨겨뒀던 게임 오버 화면을 띄움
+        GameOverPanel->SetVisibility(ESlateVisibility::Visible);
+    }
+
+    // 더 이상 카드를 못 내게 클릭 막기
+    SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
 
 

@@ -5,6 +5,8 @@
 #include "Components/WidgetComponent.h"
 #include "STSEnemyCharacter.generated.h"
 
+class ASTSGameMode;
+
 UCLASS()
 class STS_API ASTSEnemyCharacter : public ACharacter
 {
@@ -28,8 +30,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetMaxHealth() const { return MaxHealth; }
 
-	//적의 의도 텍스트 업데이트 함수
-	void UpdateIntentText(FString NewIntentText);
+	// 다음 행동을 결정하는 함수
+	void DecideNextIntent();
+
+	// 결정된 행동을 실행하는 함수 (GameMode에게 데미지를 주기 위해 포인터를 받음)
+	void ExecuteIntent(ASTSGameMode* GM);
+	
 
 protected:
 	// 최대 체력 (에디터에서 수정 가능)
@@ -42,4 +48,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	UWidgetComponent* HPWidgetComp;
+
+	// 현재 결정된 행동 종류 ("Attack" 또는 "Defend")
+	FString CurrentIntentType;
+
+	// 현재 결정된 수치 (데미지량 또는 방어도량)
+	int32 CurrentIntentValue;
 };

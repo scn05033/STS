@@ -1,10 +1,11 @@
 ﻿#include "STSEnemyCharacter.h"
 #include "STSEnemyHPWidget.h"
+#include "STSGameMode.h"
 #include "Components/WidgetComponent.h"
 
 ASTSEnemyCharacter::ASTSEnemyCharacter()
 {
-	// 1. 위젯 컴포넌트 생성 및 설정
+	// 위젯 컴포넌트 생성 및 설정
 	HPWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBar"));
 	HPWidgetComp->SetupAttachment(GetRootComponent());
 
@@ -31,7 +32,7 @@ void ASTSEnemyCharacter::BeginPlay()
 	}
 }
 
-// ⭐ 누군가 나를 때리면(ApplyDamage) 이 함수가 자동으로 실행됩니다.
+// 누군가 나를 때리면(ApplyDamage) 이 함수가 자동으로 실행됩니다.
 float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	// 부모 클래스의 기본 로직 수행 (필수)
@@ -46,14 +47,13 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 		// 체력이 0 미만으로 내려가지 않게 막음
 		if (CurrentHealth < 0.0f) CurrentHealth = 0.0f;
 
-		// ⭐ 위젯 업데이트 호출!
+		// 위젯 업데이트 호출!
 		if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
 		{
 			HPWidget->UpdateHP(CurrentHealth, MaxHealth);
 		}
 
-		//UE_LOG(LogTemp, Warning, TEXT("아야! %s가 %f의 피해를 입었습니다. (남은 체력: %f / %f)"),
-		//	*GetName(), ActualDamage, CurrentHealth, MaxHealth);
+		
 
 		// 사망 처리
 		if (CurrentHealth <= 0.0f)
@@ -64,4 +64,49 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	}
 
 	return ActualDamage;
+}
+
+void ASTSEnemyCharacter::DecideNextIntent()
+{
+	// 50% 확률로 공격 혹은 수비 결정 (0 또는 1)
+	int32 RandomChoice = FMath::RandRange(0, 1);
+
+	USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject());
+
+	if (RandomChoice == 0)
+	{
+		CurrentIntentType = TEXT("Attack");
+		CurrentIntentValue = FMath::RandRange(5, 12); // 5~12 사이의 랜덤 데미지
+
+		if (HPWidget)
+		{
+			HPWidget->UpdateIntentText(FString::Printf(TEXT("공%d"), CurrentIntentValue));
+		}
+	}
+	else
+	{
+		CurrentIntentType = TEXT("Defend");
+		CurrentIntentValue = FMath::RandRange(4, 8); // 4~8 사이의 랜덤 방어도
+
+		if (HPWidget)
+		{
+			HPWidget->UpdateIntentText(FString::Printf(TEXT("방%d"), CurrentIntentValue));
+		}
+	}
+}
+
+void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
+{
+	if (!GM) return;
+
+	if (CurrentIntentType == TEXT("Attack"))
+	{
+		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 데미지로 공격합니다!"), CurrentIntentValue);
+		GM->TakePlayerDamage(CurrentIntentValue);
+	}
+	else if (CurrentIntentType == TEXT("Defend"))
+	{
+		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
+		// TODO: 나중에 적 자신의 방어도를 올리는 함수 호출
+	}
 }
