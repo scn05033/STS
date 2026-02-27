@@ -20,7 +20,7 @@ public:
 	FText CardName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
-	int32 CostText = 0;
+	int32 Cost = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName Type;
@@ -42,4 +42,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName EffectId;
+
+	// 상태이상 타입
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName StatusType;
+
+	// 상태이상 스택 수치
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 StatusAmount;
 };

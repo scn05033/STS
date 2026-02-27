@@ -42,16 +42,6 @@ void ASTSGameMode::StartPlayerTurn()
     CurrentEnergy = MaxEnergy;
     CurrentBlock = 0;
 
-	//턴이 시작되면 적에게 다음 행동을 결정하라고 명령
-    AActor* FoundEnemy = UGameplayStatics::GetActorOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass());
-    if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(FoundEnemy))
-    {
-        Enemy->DecideNextIntent();
-    }
-
-
-	  
-    
     if (MainUIWidget)
     {
         MainUIWidget->AddCards(5);
@@ -61,7 +51,23 @@ void ASTSGameMode::StartPlayerTurn()
         MainUIWidget->UpdateBlockText(CurrentBlock);
 	}
 
-  
+    TArray<AActor*> FoundEnemies;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
+
+    //턴이 시작되면 적에게 다음 행동을 결정하라고 명령
+    for (AActor* Actor : FoundEnemies)
+    {
+        if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+        {
+            if (Enemy->ActorHasTag(FName("CurrentBattle")))
+            {
+                Enemy->DecideNextIntent();
+
+                Enemy->DecreaseStatusEffects();
+            }
+        }
+    }
+
 }
 
 void ASTSGameMode::EndPlayerTurn()
@@ -83,18 +89,26 @@ void ASTSGameMode::EndPlayerTurn()
 void ASTSGameMode::StartEnemyTurn()
 {
     CurrentTurnState = ETurnState::EnemyTurn;
-    UE_LOG(LogTemp, Warning, TEXT("!!! enemy turn start !!!"));
+    
 
-    // 적의 행동은 시간이 좀 걸려야 함 (연출)
-    // 2초 뒤에 다시 플레이어 턴으로 넘기는 타이머 설정
+    
     FTimerHandle TimerHandle;
     GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
         {
-			// 적이 공격합니다!
-            AActor* FoundEnemy = UGameplayStatics::GetActorOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass());
-            if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(FoundEnemy))
+            TArray<AActor*> FoundEnemies;
+            UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
+
+            // 모든 적이 일제히 플레이어를 향해 행동(공격/방어)을 실행합니다.
+            for (AActor* Actor : FoundEnemies)
             {
-                Enemy->ExecuteIntent(this); 
+                if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+                {
+                    if (Enemy->ActorHasTag(FName("CurrentBattle")))
+                    {
+                        Enemy->ExecuteIntent(this);
+
+                    }
+                }
             }
 
             TurnNumber++; // 턴 수 증가
@@ -105,11 +119,11 @@ void ASTSGameMode::StartEnemyTurn()
 
 }
 
-bool ASTSGameMode::TryUseEnergy(int32 Amount)
+bool ASTSGameMode::TryUseEnergy(int32 Cost)
 {
-    if (CurrentEnergy >= Amount)
+    if (CurrentEnergy >= Cost)
     {
-        CurrentEnergy -= Amount;
+        CurrentEnergy -= Cost;
 
         if (MainUIWidget)
         {
@@ -118,6 +132,7 @@ bool ASTSGameMode::TryUseEnergy(int32 Amount)
 
         return true; // 사용 성공
     }
+    UE_LOG(LogTemp, Warning, TEXT("에너지가 부족합니다!"));
     return false; // 에너지 부족
 }
 
@@ -143,6 +158,7 @@ void ASTSGameMode::InitializeDeck()
     {
         DrawPile.Add(FName("STRIKE_BASIC")); 
         DrawPile.Add(FName("DEFEND_BASIC")); 
+        DrawPile.Add(FName("BASH"));
     }
 
     // 덱 섞기 (언리얼 배열의 스왑 기능 활용)
@@ -247,6 +263,34 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
     if (MainUIWidget)
     {
         MainUIWidget->UpdateBlockText(CurrentBlock);
-        //MainUIWidget->UpdatePlayerHPText(CurrentHealth, MaxHealth); (나중에 플레이어 HP UI 만들면 주석 해제)
+    }
+}
+
+void ASTSGameMode::CheckVictory()
+{
+    TArray<AActor*> FoundEnemies;
+    // 이 전투에 참여한 적들만 긁어옵니다.
+    UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+
+    int32 AliveCount = 0;
+    for (AActor* Actor : FoundEnemies)
+    {
+        if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+        {
+            if (Enemy->CurrentHealth > 0)
+            {
+                AliveCount++; // 살아있는 적 숫자 세기
+            }
+        }
+    }
+
+    // 살아있는 적이 0명이라면 승리!
+    if (AliveCount == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 전투 승리!"));
+        if (MainUIWidget)
+        {
+            MainUIWidget->ShowVictory();
+        }
     }
 }

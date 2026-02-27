@@ -67,12 +67,12 @@ public:
     // 카드를 버리는 함수 (사용한 카드나 턴 종료 시 버려진 카드)
     void AddToDiscardPile(FName CardRowName);
 
-    // 카드 뽑기 내부 로직 (UI에게 "이 이름의 카드를 생성해!" 라고 명령할 예정)
-    void DrawCardsFromDeck(int32 Amount);
+    // 카드 뽑기 내부 로직 
+ //   void DrawCardsFromDeck(int32 Amount);
 
     // 카드 1장 뽑아서 이름(RowName) 반환 
     FName DrawCard();
-
+    void CheckVictory();
 protected:
     // 실제 상태 변경 로직
     void StartPlayerTurn();
@@ -86,9 +86,13 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle")
     int32 TurnNumber = 1;
 
+    
+   
     //UI를 기억할 변수
     UPROPERTY()
 	USTSUserWidget* MainUIWidget;
+
+
 
     // 덱(뽑을 카드 뭉치)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")

@@ -21,7 +21,7 @@ protected:
     UTextBlock* CardName;
 
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* CostText;
+    UTextBlock* Cost;
 
     UPROPERTY(meta = (BindWidget))
     UTextBlock* CardDescription;

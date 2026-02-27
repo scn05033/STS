@@ -17,9 +17,9 @@ void USTSCardWidget::UpdateCardDesign(const FCardData& Data)
     }
 
     //비용 설정 (int를 Text로 변환)
-   if (CostText)
+   if (Cost)
     {
-        CostText->SetText(FText::AsNumber(Data.CostText));
+        Cost->SetText(FText::AsNumber(Data.Cost));
     }
    
     //설명 설정

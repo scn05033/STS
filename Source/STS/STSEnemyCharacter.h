@@ -36,8 +36,6 @@ public:
 	// 결정된 행동을 실행하는 함수 (GameMode에게 데미지를 주기 위해 포인터를 받음)
 	void ExecuteIntent(ASTSGameMode* GM);
 	
-
-protected:
 	// 최대 체력 (에디터에서 수정 가능)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float MaxHealth = 50.0f;
@@ -45,6 +43,17 @@ protected:
 	// 현재 체력
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float CurrentHealth;
+
+	// 취약 스택 (0이면 정상, 1 이상이면 취약 상태)
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Status")
+	int32 VulnerableStacks = 0;
+
+	// 턴이 끝날 때 상태이상을 1씩 줄여주는 함수
+	void DecreaseStatusEffects();
+
+
+protected:
+	
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	UWidgetComponent* HPWidgetComp;

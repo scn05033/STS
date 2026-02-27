@@ -1,6 +1,7 @@
 ﻿#include "STSEnemyCharacter.h"
 #include "STSEnemyHPWidget.h"
 #include "STSGameMode.h"
+#include "Kismet/GameplayStatics.h"
 #include "Components/WidgetComponent.h"
 
 ASTSEnemyCharacter::ASTSEnemyCharacter()
@@ -38,6 +39,18 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	// 부모 클래스의 기본 로직 수행 (필수)
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
+	// 들어온 원래 데미지
+	float FinalDamage = DamageAmount;
+
+	// [상태이상] 취약(Vulnerable) 스택이 0보다 크면 데미지 1.5배 (반올림)
+	if (VulnerableStacks > 0)
+	{
+		ActualDamage = DamageAmount * 1.5f;
+		UE_LOG(LogTemp, Warning, TEXT("[취약 발동] 데미지가 %f 에서 %f 로 증폭되었습니다!"), DamageAmount, ActualDamage);
+	}
+
+	
+
 	// 데미지가 0보다 클 때만 처리
 	if (ActualDamage > 0.0f)
 	{
@@ -60,6 +73,16 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 		{
 			UE_LOG(LogTemp, Error, TEXT("%s 사망! (Die)"), *GetName());
 			// TODO: 나중에 사망 애니메이션 재생 및 파괴 로직 추가
+
+			// 승리 확인 요청
+			ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+			if (GM)
+			{
+				GM->CheckVictory();
+			}
+
+			// 내 캐릭터 월드에서 삭제
+			Destroy();
 		}
 	}
 
@@ -108,5 +131,15 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	{
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		// TODO: 나중에 적 자신의 방어도를 올리는 함수 호출
+	}
+}
+
+void ASTSEnemyCharacter::DecreaseStatusEffects()
+{
+	// 취약 스택이 남아있다면 1 감소
+	if (VulnerableStacks > 0)
+	{
+		VulnerableStacks--;
+		UE_LOG(LogTemp, Warning, TEXT("📉 적의 취약 스택이 1 감소했습니다. (남은 스택: %d)"), VulnerableStacks);
 	}
 }

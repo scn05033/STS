@@ -72,4 +72,12 @@ public:
 	// 게임 오버 연출 함수
 	void ShowGameOver();
 
+	// 드래그 중일 때 매 프레임 실행되는 함수
+	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	void ShowVictory();
+
+	// UI 패널 연결
+	UPROPERTY(meta = (BindWidget))
+	class UCanvasPanel* VictoryPanel;
 };
