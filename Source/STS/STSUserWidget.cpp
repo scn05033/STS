@@ -216,81 +216,101 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
     if (!GM) return false;
 
-    AActor* TargetEnemy = nullptr;
     APlayerController* PC = GetOwningPlayer();
+    AActor* TargetEnemy = nullptr;
 
-    // 공격 카드일 경우
+    // 공격 카드일 경우: 타겟팅 검사
     if (CardData.Type == FName("Attack"))
     {
-        // [핵심 해결] 드래그 이벤트 전용 마우스 좌표 가져오기!
-        FVector2D ScreenPos = InDragDropEvent.GetScreenSpacePosition();
-        FVector WorldLoc, WorldDir;
-
-        // 드래그 중인 화면 좌표를 3D 월드 좌표로 변환
-        if (UGameplayStatics::DeprojectScreenToWorld(PC, ScreenPos, WorldLoc, WorldDir))
+        if (CardData.bIsAoE)
         {
-            FVector End = WorldLoc + (WorldDir * 10000.0f);
-            FHitResult HitResult;
-
-            // 눈에 보이는 빨간 레이저 빔 그리기!
-            DrawDebugLine(GetWorld(), WorldLoc, End, FColor::Red, false, 3.0f, 0, 5.0f);
-
-            // 레이저 발사
-            if (GetWorld()->LineTraceSingleByChannel(HitResult, WorldLoc, End, ECC_Visibility))
+            // 광역기면 레이저 검사 없이 프리패스!
+            UE_LOG(LogTemp, Warning, TEXT("광역 공격 카드 발동 준비!"));
+        }
+        else
+        {
+            // 단일 공격기면 기존처럼 레이저로 적을 맞췄는지 깐깐하게 검사
+            FVector2D ScreenPos = InDragDropEvent.GetScreenSpacePosition();
+            FVector WorldLoc, WorldDir;
+            if (UGameplayStatics::DeprojectScreenToWorld(PC, ScreenPos, WorldLoc, WorldDir))
             {
-                AActor* HitActor = HitResult.GetActor();
-                if (HitActor)
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("레이저 적중! 맞은 물체: %s"), *HitActor->GetName());
+                FVector End = WorldLoc + (WorldDir * 10000.0f);
+                FHitResult HitResult;
 
-                    if (HitActor->ActorHasTag(FName("Enemy")))
+                if (GetWorld()->LineTraceSingleByChannel(HitResult, WorldLoc, End, ECC_Visibility))
+                {
+                    if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag(FName("Enemy")))
                     {
-                        TargetEnemy = HitActor;
+                        TargetEnemy = HitResult.GetActor();
                     }
                 }
             }
-        }
 
-        // 공격 카드인데 적을 못 맞췄다면 취소
-        if (!TargetEnemy)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("공격 카드는 적을 타겟팅해야 합니다!"));
-            return false;
-        }
-    }
-
-    // 에너지 사용
-    if (!GM->TryUseEnergy(CardData.Cost))
-    {
-        return false;
-    }
-
-    // 에너지가 깎였으니 현재 UI의 숫자를 강제로 바로 업데이트
-    UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
-
-    // 카드 효과 발동
-    if (CardData.Type == FName("Attack") && TargetEnemy)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("🎯 공격 성공! 대상: %s, 데미지: %d"), *TargetEnemy->GetName(), CardData.BaseDamage);
-        UGameplayStatics::ApplyDamage(TargetEnemy, CardData.BaseDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-        // [상태이상 부여] 
-        if (CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
-        {
-            // 맞은 적을 ASTSEnemyCharacter로 변환해서 스택을 쌓아줍니다.
-            if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
+            if (!TargetEnemy)
             {
-                EnemyChar->VulnerableStacks += CardData.StatusAmount;
-                UE_LOG(LogTemp, Warning, TEXT("적에게 '취약' %d 스택 부여! (현재 총 %d 스택)"), CardData.StatusAmount, EnemyChar->VulnerableStacks);
+                UE_LOG(LogTemp, Warning, TEXT("단일 공격 카드는 적을 타겟팅해야 합니다!"));
+                return false;
             }
         }
     }
-    else if (CardData.Type == FName("Defend"))
+
+    // 에너지 결제
+    if (!GM->TryUseEnergy(CardData.Cost)) return false;
+    UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
+
+    // 카드 효과 발동!
+    if (CardData.Type == FName("Attack"))
+    {
+        // 내 공격력(약화) 먼저 일괄 계산! (광역기든 단일기든 똑같이 약화 적용)
+        int32 FinalPlayerDamage = CardData.BaseDamage;
+        if (GM->WeakStacks > 0)
+        {
+            FinalPlayerDamage = FMath::FloorToInt(CardData.BaseDamage * 0.75f);
+            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 내 공격력이 %d 에서 %d 로 감소했습니다!"), CardData.BaseDamage, FinalPlayerDamage);
+        }
+
+        // 광역 공격일 때
+        if (CardData.bIsAoE)
+        {
+            TArray<AActor*> FoundEnemies;
+            // "CurrentBattle" 태그를 가진 방 안의 모든 적을 싹 다 불러옵니다.
+            UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+
+            for (AActor* Actor : FoundEnemies)
+            {
+                if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+                {
+                    // 모든 적에게 각각 데미지 적용! (적의 취약 스택은 알아서 각각 계산)
+                    UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
+                    UE_LOG(LogTemp, Warning, TEXT("[광역 적중] %s 에게 %d 데미지!"), *Enemy->GetName(), FinalPlayerDamage);
+                }
+            }
+        }
+        // 단일 공격일 때
+        else if (TargetEnemy)
+        {
+            UGameplayStatics::ApplyDamage(TargetEnemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
+            UE_LOG(LogTemp, Warning, TEXT("[단일 적중] %s 에게 %d 데미지!"), *TargetEnemy->GetName(), FinalPlayerDamage);
+
+            // [상태이상 부여] 강타처럼 적에게 디버프를 거는 카드라면? (기존 코드 유지)
+            if (CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
+            {
+                if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
+                {
+                    EnemyChar->VulnerableStacks += CardData.StatusAmount;
+                    UE_LOG(LogTemp, Warning, TEXT("적에게 '취약' %d 스택 부여!"), CardData.StatusAmount);
+                }
+            }
+        }
+    }
+    // 수비 카드일 때
+    else if (CardData.Type == FName("Skill") || CardData.Type == FName("Defend"))
     {
         GM->AddBlock(CardData.BaseBlock);
         UE_LOG(LogTemp, Warning, TEXT("방어도 증가: %d"), CardData.BaseBlock);
     }
 
-    // 사용한 카드 처리
+    // 카드 버리기
     GM->AddToDiscardPile(DroppedCard->CardRowName);
     DroppedCard->RemoveFromParent();
     CreatedCards.Remove(DroppedCard);
@@ -341,5 +361,27 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
         }
     }
     return true; // 드래그 이벤트 정상 처리
+}
+
+void USTSUserWidget::ClearHandUI()
+{
+    ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+
+    for (USTSCardWidget* Card : CreatedCards)
+    {
+        if (Card)
+        {
+            // 남은 카드의 이름을 다시 덱(DrawPile)에 집어넣습니다.
+            if (GM)
+            {
+                GM->DrawPile.Add(Card->CardRowName);
+            }
+            // 화면에서 카드를 삭제합니다.
+            Card->RemoveFromParent();
+        }
+    }
+
+    // 관리 목록을 비워줍니다.
+    CreatedCards.Empty();
 }
 

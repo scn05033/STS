@@ -80,4 +80,7 @@ public:
 	// UI 패널 연결
 	UPROPERTY(meta = (BindWidget))
 	class UCanvasPanel* VictoryPanel;
+
+	// 다음 방으로 갈 때 화면의 카드를 지우는 함수
+	void ClearHandUI();
 };

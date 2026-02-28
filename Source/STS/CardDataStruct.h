@@ -50,4 +50,8 @@ public:
 	// 상태이상 스택 수치
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 StatusAmount;
+
+	// 광역기(AoE) 여부 체크! (true면 전체 공격, false면 단일 공격)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsAoE;
 };

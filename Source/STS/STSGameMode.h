@@ -67,12 +67,37 @@ public:
     // 카드를 버리는 함수 (사용한 카드나 턴 종료 시 버려진 카드)
     void AddToDiscardPile(FName CardRowName);
 
-    // 카드 뽑기 내부 로직 
- //   void DrawCardsFromDeck(int32 Amount);
+ 
 
     // 카드 1장 뽑아서 이름(RowName) 반환 
     FName DrawCard();
     void CheckVictory();
+
+    // 플레이어의 약화 스택
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Status")
+    int32 WeakStacks = 0;
+
+    // 약화를 부여하는 함수
+    void AddWeak(int32 Amount);
+
+    // 턴 시작 시 디버프를 줄여주는 함수
+    void DecreasePlayerStatusEffects();
+
+    // 승리 후 다음 방으로 넘어가는 함수
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void StartNextStage();
+
+    // 다음 방에서 스폰할 적의 블루프린트 클래스 (언리얼 에디터에서 지정할 수 있게 만듭니다)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    TSubclassOf<class ASTSEnemyCharacter> EnemyClassToSpawn;
+
+    // 덱(뽑을 카드 뭉치)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")
+    TArray<FName> DrawPile;
+
+    // 무덤(버린 카드 뭉치)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")
+    TArray<FName> DiscardPile;
 protected:
     // 실제 상태 변경 로직
     void StartPlayerTurn();
@@ -94,13 +119,7 @@ protected:
 
 
 
-    // 덱(뽑을 카드 뭉치)
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")
-    TArray<FName> DrawPile;
-
-    // 무덤(버린 카드 뭉치)
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")
-    TArray<FName> DiscardPile;
+   
 
    
 };

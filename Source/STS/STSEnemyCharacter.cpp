@@ -91,8 +91,8 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 void ASTSEnemyCharacter::DecideNextIntent()
 {
-	// 50% 확률로 공격 혹은 수비 결정 (0 또는 1)
-	int32 RandomChoice = FMath::RandRange(0, 1);
+	// 0: 공격, 1: 방어, 2: 약화 (각각 33% 확률)
+	int32 RandomChoice = FMath::RandRange(0, 2);
 
 	USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject());
 
@@ -106,7 +106,7 @@ void ASTSEnemyCharacter::DecideNextIntent()
 			HPWidget->UpdateIntentText(FString::Printf(TEXT("공%d"), CurrentIntentValue));
 		}
 	}
-	else
+	else if (RandomChoice == 1)
 	{
 		CurrentIntentType = TEXT("Defend");
 		CurrentIntentValue = FMath::RandRange(4, 8); // 4~8 사이의 랜덤 방어도
@@ -114,6 +114,17 @@ void ASTSEnemyCharacter::DecideNextIntent()
 		if (HPWidget)
 		{
 			HPWidget->UpdateIntentText(FString::Printf(TEXT("방%d"), CurrentIntentValue));
+		}
+	}
+	else 
+	{
+		CurrentIntentType = TEXT("Debuff");
+		CurrentIntentValue = 2; // 플레이어에게 줄 약화 스택 (예: 2스택)
+
+		if (HPWidget)
+		{
+			// 머리 위에 "약화2" 라고 띄워줍니다
+			HPWidget->UpdateIntentText(FString::Printf(TEXT("약화%d"), CurrentIntentValue));
 		}
 	}
 }
@@ -132,6 +143,16 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		// TODO: 나중에 적 자신의 방어도를 올리는 함수 호출
 	}
+	else if (CurrentIntentType == TEXT("Debuff"))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("적이 플레이어에게 기분 나쁜 저주를 겁니다!"));
+
+		if (GM)
+		{
+			// 플레이어에게 약화 2스택을 줍니다.
+			GM->AddWeak(CurrentIntentValue);
+		}
+	}
 }
 
 void ASTSEnemyCharacter::DecreaseStatusEffects()
@@ -140,6 +161,6 @@ void ASTSEnemyCharacter::DecreaseStatusEffects()
 	if (VulnerableStacks > 0)
 	{
 		VulnerableStacks--;
-		UE_LOG(LogTemp, Warning, TEXT("📉 적의 취약 스택이 1 감소했습니다. (남은 스택: %d)"), VulnerableStacks);
+		UE_LOG(LogTemp, Warning, TEXT("적의 취약 스택이 1 감소했습니다. (남은 스택: %d)"), VulnerableStacks);
 	}
 }

@@ -2,6 +2,8 @@
 
 #include "STSGameMode.h"
 #include "STSUserWidget.h"
+#include "Components/CanvasPanel.h"
+#include "Components/Widget.h"
 #include "STSEnemyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -41,6 +43,9 @@ void ASTSGameMode::StartPlayerTurn()
 
     CurrentEnergy = MaxEnergy;
     CurrentBlock = 0;
+
+    // 내 턴이 시작될 때 디버프가 1 줄어듭니다
+    DecreasePlayerStatusEffects();
 
     if (MainUIWidget)
     {
@@ -159,6 +164,8 @@ void ASTSGameMode::InitializeDeck()
         DrawPile.Add(FName("STRIKE_BASIC")); 
         DrawPile.Add(FName("DEFEND_BASIC")); 
         DrawPile.Add(FName("BASH"));
+        DrawPile.Add(FName("Cleave"));
+
     }
 
     // 덱 섞기 (언리얼 배열의 스왑 기능 활용)
@@ -293,4 +300,72 @@ void ASTSGameMode::CheckVictory()
             MainUIWidget->ShowVictory();
         }
     }
+}
+
+void ASTSGameMode::AddWeak(int32 Amount)
+{
+    WeakStacks += Amount;
+    UE_LOG(LogTemp, Warning, TEXT("플레이어가 '약화'에 걸렸습니다! (현재 %d 스택)"), WeakStacks);
+}
+
+void ASTSGameMode::DecreasePlayerStatusEffects()
+{
+    if (WeakStacks > 0)
+    {
+        WeakStacks--;
+        UE_LOG(LogTemp, Warning, TEXT("플레이어의 약화 스택이 감소했습니다. (남은 스택: %d)"), WeakStacks);
+    }
+}
+
+void ASTSGameMode::StartNextStage()
+{
+    //  전투 스탯 초기화 (체력은 다음 방으로 그대로 가져갑니다!)
+    CurrentBlock = 0;
+    WeakStacks = 0;
+    CurrentEnergy = MaxEnergy;
+
+    // 덱 초기화: 무덤(DiscardPile)과 손패(Hand)에 있는 카드 이름을 모두 뽑을 덱(DrawPile)으로 돌려보냅니다.
+    DrawPile.Append(DiscardPile);
+    DiscardPile.Empty();
+
+
+   
+
+    // 메인 UI (승리 화면 등) 정리
+    if (MainUIWidget)
+    {
+        // 승리 패널 숨기기
+        MainUIWidget->VictoryPanel->SetVisibility(ESlateVisibility::Hidden);
+        MainUIWidget->ClearHandUI();
+       
+    }
+
+
+
+    UE_LOG(LogTemp, Warning, TEXT("다음 방으로 이동했습니다! 새로운 전투를 시작합니다."));
+
+    if (EnemyClassToSpawn)
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f); 
+        FRotator SpawnRotation(0.0f, 180.0f, 0.0f);
+
+        AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(EnemyClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
+        if (NewEnemy)
+        {
+            NewEnemy->Tags.Add(FName("CurrentBattle"));
+            NewEnemy->Tags.Add(FName("Enemy")); 
+            UE_LOG(LogTemp, Warning, TEXT("새로운 적 소환 완료!"));
+        }
+    }
+    else
+    {
+        
+        UE_LOG(LogTemp, Error, TEXT("스폰할 적이 없습니다! BP_STSGameMode에서 EnemyClassToSpawn을 확인하세요."));
+    }
+
+    // 새 전투 시작 (카드 5장 드로우 및 턴 시작)
+    StartPlayerTurn();
 }
