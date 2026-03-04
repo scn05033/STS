@@ -54,4 +54,7 @@ public:
 	// 광역기(AoE) 여부 체크! (true면 전체 공격, false면 단일 공격)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsAoE;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsRewardable = true; // 보상으로 등장할 수 있는지 체크
 };

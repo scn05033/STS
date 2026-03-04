@@ -98,6 +98,23 @@ public:
     // 무덤(버린 카드 뭉치)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Deck")
     TArray<FName> DiscardPile;
+
+    // 내 영구적인 진짜 덱 (전투가 끝날 때마다 이 덱을 기준으로 DrawPile이 리셋)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deck")
+    TArray<FName> MasterDeck;
+
+    // 카드가 들어있는 데이터테이블(엑셀) 원본 (여기서 카드를 랜덤으로 뽑아옴)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deck")
+    class UDataTable* CardDataTable;
+
+    // 보상으로 제시할 무작위 카드 3장을 뽑는 함수
+    UFUNCTION(BlueprintCallable, Category = "Reward")
+    TArray<FName> GenerateRandomRewards(int32 Count = 3);
+
+    // 선택한 보상 카드를 내 마스터 덱에 영구 추가하는 함수
+    UFUNCTION(BlueprintCallable, Category = "Reward")
+    void AddCardToMasterDeck(FName NewCardName);
+
 protected:
     // 실제 상태 변경 로직
     void StartPlayerTurn();

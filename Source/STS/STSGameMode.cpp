@@ -4,6 +4,7 @@
 #include "STSUserWidget.h"
 #include "Components/CanvasPanel.h"
 #include "Components/Widget.h"
+#include "CardDataStruct.h"
 #include "STSEnemyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -163,8 +164,8 @@ void ASTSGameMode::InitializeDeck()
     {
         DrawPile.Add(FName("STRIKE_BASIC")); 
         DrawPile.Add(FName("DEFEND_BASIC")); 
-        DrawPile.Add(FName("BASH"));
-        DrawPile.Add(FName("Cleave"));
+        //DrawPile.Add(FName("BASH"));
+        //DrawPile.Add(FName("Cleave"));
 
     }
 
@@ -325,8 +326,9 @@ void ASTSGameMode::StartNextStage()
     CurrentEnergy = MaxEnergy;
 
     // 덱 초기화: 무덤(DiscardPile)과 손패(Hand)에 있는 카드 이름을 모두 뽑을 덱(DrawPile)으로 돌려보냅니다.
-    DrawPile.Append(DiscardPile);
+    //DrawPile.Append(DiscardPile);
     DiscardPile.Empty();
+    DrawPile = MasterDeck;
 
 
    
@@ -368,4 +370,44 @@ void ASTSGameMode::StartNextStage()
 
     // 새 전투 시작 (카드 5장 드로우 및 턴 시작)
     StartPlayerTurn();
+}
+
+TArray<FName> ASTSGameMode::GenerateRandomRewards(int32 Count)
+{
+    TArray<FName> Rewards;
+    if (!CardDataTable) return Rewards;
+
+    TArray<FName> AllRowNames = CardDataTable->GetRowNames();
+    TArray<FName> ValidCards; // 보상으로 줄 수 있는 진짜 후보들
+
+    // 엑셀을 쫙 훑으면서 '보상 가능(bIsRewardable)' 체크가 된 카드만 걸러냄
+    for (FName RowName : AllRowNames)
+    {
+        FCardData* CardData = CardDataTable->FindRow<FCardData>(RowName, TEXT(""));
+        if (CardData && CardData->bIsRewardable)
+        {
+            ValidCards.Add(RowName);
+        }
+    }
+
+    // 걸러진 카드들 중에서 중복 없이 3장을 뽑음
+    for (int32 i = 0; i < Count; i++)
+    {
+        if (ValidCards.Num() == 0) break; // 더 이상 뽑을 카드가 없으면 멈춤
+
+        int32 RandomIndex = FMath::RandRange(0, ValidCards.Num() - 1);
+        Rewards.Add(ValidCards[RandomIndex]);
+
+        // 뽑힌 카드는 후보 목록에서 제외 (똑같은 카드가 3장 뜨는 것 방지)
+        ValidCards.RemoveAt(RandomIndex);
+    }
+
+    return Rewards;
+}
+
+void ASTSGameMode::AddCardToMasterDeck(FName NewCardName)
+{
+    // 내 영구 덱에 카드를 추가합니다!
+    MasterDeck.Add(NewCardName);
+    UE_LOG(LogTemp, Warning, TEXT("덱 강화 완료! 새 카드가 마스터 덱에 추가되었습니다: %s"), *NewCardName.ToString());
 }

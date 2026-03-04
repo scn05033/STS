@@ -327,6 +327,10 @@ void USTSUserWidget::ShowVictory()
     if (VictoryPanel)
     {
         VictoryPanel->SetVisibility(ESlateVisibility::Visible);
+
+
+        // UI가 켜지자마자 블루프린트에게 카드 3장 뽑으라고 명령
+        InitVictoryRewards();
     }
     else
     {
