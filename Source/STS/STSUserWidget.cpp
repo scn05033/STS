@@ -389,3 +389,42 @@ void USTSUserWidget::ClearHandUI()
     CreatedCards.Empty();
 }
 
+void USTSUserWidget::ApplyRewardCardsData(TArray<FName> RewardNames)
+{
+    // 데이터테이블(엑셀)이 없으면 중단
+    if (!CardDataTable) return;
+
+    // 1번 카드 세팅
+    if (RewardNames.IsValidIndex(0) && RewardCard1)
+    {
+        FCardData* Data1 = CardDataTable->FindRow<FCardData>(RewardNames[0], TEXT("Reward1"));
+        if (Data1)
+        {
+            RewardCard1->CardRowName = RewardNames[0]; // 클릭할 때를 대비해 이름표 달아주기
+            RewardCard1->UpdateCardDesign(*Data1);     
+        }
+    }
+
+    // 2번 카드 세팅
+    if (RewardNames.IsValidIndex(1) && RewardCard2)
+    {
+        FCardData* Data2 = CardDataTable->FindRow<FCardData>(RewardNames[1], TEXT("Reward2"));
+        if (Data2)
+        {
+            RewardCard2->CardRowName = RewardNames[1];
+            RewardCard2->UpdateCardDesign(*Data2);
+        }
+    }
+
+    // 3번 카드 세팅
+    if (RewardNames.IsValidIndex(2) && RewardCard3)
+    {
+        FCardData* Data3 = CardDataTable->FindRow<FCardData>(RewardNames[2], TEXT("Reward3"));
+        if (Data3)
+        {
+            RewardCard3->CardRowName = RewardNames[2];
+            RewardCard3->UpdateCardDesign(*Data3);
+        }
+    }
+}
+

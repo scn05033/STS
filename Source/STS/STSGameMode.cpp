@@ -318,57 +318,61 @@ void ASTSGameMode::DecreasePlayerStatusEffects()
     }
 }
 
-void ASTSGameMode::StartNextStage()
+void ASTSGameMode::GoToNextNode(FName NodeType)
 {
-    //  전투 스탯 초기화 (체력은 다음 방으로 그대로 가져갑니다!)
+    // 층수 증가 및 스탯 초기화
+    CurrentFloor++;
     CurrentBlock = 0;
     WeakStacks = 0;
     CurrentEnergy = MaxEnergy;
 
-    // 덱 초기화: 무덤(DiscardPile)과 손패(Hand)에 있는 카드 이름을 모두 뽑을 덱(DrawPile)으로 돌려보냅니다.
-    //DrawPile.Append(DiscardPile);
-    DiscardPile.Empty();
     DrawPile = MasterDeck;
+    DiscardPile.Empty();
 
-
-   
-
-    // 메인 UI (승리 화면 등) 정리
     if (MainUIWidget)
     {
-        // 승리 패널 숨기기
-        MainUIWidget->VictoryPanel->SetVisibility(ESlateVisibility::Hidden);
+        // 맵 UI나 기타 창들을 닫아주는 로직 (나중에 추가)
         MainUIWidget->ClearHandUI();
-       
     }
 
+    // 노드 종류에 따른 분기 처리
+    if (NodeType == FName("Rest"))
+    {
+        // 모닥불 로직 (예: 체력 30% 회복 후 다시 맵 UI 열기)
+        UE_LOG(LogTemp, Warning, TEXT("모닥불 도착! 휴식을 취합니다."));
+        // TODO: 모닥불 UI 띄우기
+        return; // 전투가 아니므로 여기서 함수 종료!
+    }
 
+    // 전투 노드라면 적 소환 (보스인지 확인)
+    TSubclassOf<class ASTSEnemyCharacter> TargetEnemyClass = EnemyClassToSpawn;
 
-    UE_LOG(LogTemp, Warning, TEXT("다음 방으로 이동했습니다! 새로운 전투를 시작합니다."));
+    
 
-    if (EnemyClassToSpawn)
+    if (CurrentFloor == BossFloor)
+    {
+        TargetEnemyClass = BossClassToSpawn;
+        UE_LOG(LogTemp, Error, TEXT("보스 등장! 최종 전투 준비!"));
+    }
+
+    //  적 소환! 
+    if (TargetEnemyClass)
     {
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f); 
+        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
         FRotator SpawnRotation(0.0f, 180.0f, 0.0f);
 
-        AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(EnemyClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
+
+        AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(TargetEnemyClass, SpawnLocation, SpawnRotation, SpawnParams);
         if (NewEnemy)
         {
             NewEnemy->Tags.Add(FName("CurrentBattle"));
-            NewEnemy->Tags.Add(FName("Enemy")); 
-            UE_LOG(LogTemp, Warning, TEXT("새로운 적 소환 완료!"));
+            NewEnemy->Tags.Add(FName("Enemy"));
         }
     }
-    else
-    {
-        
-        UE_LOG(LogTemp, Error, TEXT("스폰할 적이 없습니다! BP_STSGameMode에서 EnemyClassToSpawn을 확인하세요."));
-    }
 
-    // 새 전투 시작 (카드 5장 드로우 및 턴 시작)
+    // 새 턴 시작
     StartPlayerTurn();
 }
 

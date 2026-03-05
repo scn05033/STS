@@ -78,7 +78,7 @@ public:
 	void ShowVictory();
 
 	// UI 패널 연결
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	class UCanvasPanel* VictoryPanel;
 
 	// 다음 방으로 갈 때 화면의 카드를 지우는 함수
@@ -86,4 +86,19 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Reward")
 	void InitVictoryRewards();
+
+
+	//보상 카드 3개
+	UPROPERTY(meta = (BindWidget))
+	class USTSCardWidget* RewardCard1;
+
+	UPROPERTY(meta = (BindWidget))
+	class USTSCardWidget* RewardCard2;
+
+	UPROPERTY(meta = (BindWidget))
+	class USTSCardWidget* RewardCard3;
+
+	// 뽑힌 3장의 카드 이름을 받아서 엑셀 데이터를 쏴주는 함수
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	void ApplyRewardCardsData(TArray<FName> RewardNames);
 };

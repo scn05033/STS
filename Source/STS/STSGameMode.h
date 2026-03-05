@@ -84,8 +84,8 @@ public:
     void DecreasePlayerStatusEffects();
 
     // 승리 후 다음 방으로 넘어가는 함수
-    UFUNCTION(BlueprintCallable, Category = "Combat")
-    void StartNextStage();
+   // UFUNCTION(BlueprintCallable, Category = "Combat")
+   // void StartNextStage();
 
     // 다음 방에서 스폰할 적의 블루프린트 클래스 (언리얼 에디터에서 지정할 수 있게 만듭니다)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
@@ -114,6 +114,23 @@ public:
     // 선택한 보상 카드를 내 마스터 덱에 영구 추가하는 함수
     UFUNCTION(BlueprintCallable, Category = "Reward")
     void AddCardToMasterDeck(FName NewCardName);
+
+    // 현재 층수 (1층부터 시작)
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Map")
+    int32 CurrentFloor = 1;
+
+    // 보스가 등장하는 마지막 층수 (빠른 테스트를 위해 5층으로 설정)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map")
+    int32 BossFloor = 5;
+
+
+    // 보스전에서 스폰할 특별한 적!
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    TSubclassOf<class ASTSEnemyCharacter> BossClassToSpawn;
+
+    // 노드를 선택했을 때 다음 스테이지를 세팅하는 함수 
+    UFUNCTION(BlueprintCallable, Category = "Map")
+    void GoToNextNode(FName NodeType); // "Combat", "Rest", "Boss" 등
 
 protected:
     // 실제 상태 변경 로직
