@@ -48,10 +48,10 @@ public:
     int32 CurrentBlock = 0;
 
     // 플레이어 체력
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
     int32 CurrentHealth = 50;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
     int32 MaxHealth = 50;
 
     // 플레이어가 데미지를 받는 함수 (방어도를 먼저 깎는 로직 포함)
@@ -121,16 +121,24 @@ public:
 
     // 보스가 등장하는 마지막 층수 (빠른 테스트를 위해 5층으로 설정)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map")
-    int32 BossFloor = 5;
+    int32 BossFloor = 3;
 
 
     // 보스전에서 스폰할 특별한 적!
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     TSubclassOf<class ASTSEnemyCharacter> BossClassToSpawn;
 
+    // 적 스폰 변수들 근처에 모닥불 스폰용 변수를 하나 추가합니다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map")
+    TSubclassOf<class AActor> CampfireClassToSpawn;
+
     // 노드를 선택했을 때 다음 스테이지를 세팅하는 함수 
     UFUNCTION(BlueprintCallable, Category = "Map")
     void GoToNextNode(FName NodeType); // "Combat", "Rest", "Boss" 등
+
+    //게임 오버 시 게임을 재시작
+    UFUNCTION(BlueprintCallable, Category = "Game")
+    void RestartGame();
 
 protected:
     // 실제 상태 변경 로직
@@ -148,7 +156,7 @@ protected:
     
    
     //UI를 기억할 변수
-    UPROPERTY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	USTSUserWidget* MainUIWidget;
 
 

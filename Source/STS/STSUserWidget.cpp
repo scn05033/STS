@@ -338,6 +338,7 @@ void USTSUserWidget::ShowVictory()
     }
 
     SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    OnCombatEnded();
 }
 
 
@@ -427,4 +428,18 @@ void USTSUserWidget::ApplyRewardCardsData(TArray<FName> RewardNames)
         }
     }
 }
+
+void USTSUserWidget::ShowGameClear()
+{
+    UE_LOG(LogTemp, Warning, TEXT("보스 처치! 게임 클리어 화면 출력!"));
+
+    if (GameClearPanel)
+    {
+        GameClearPanel->SetVisibility(ESlateVisibility::Visible);
+    }
+
+    SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    OnCombatEnded();
+}
+
 

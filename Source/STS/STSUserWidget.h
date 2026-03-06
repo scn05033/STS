@@ -67,6 +67,7 @@ public:
 	void UpdateBlockText(int32 CurrentBlock);
 
 	// 플레이어 체력 갱신 함수
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	void UpdatePlayerHP(int32 CurrentHP, int32 MaxHP);
 
 	// 게임 오버 연출 함수
@@ -81,11 +82,23 @@ public:
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	class UCanvasPanel* VictoryPanel;
 
+	//엔딩 화면 패널 연결
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+	class UCanvasPanel* GameClearPanel;
+
+
+
+	// 엔딩 화면을 켜는 함수
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowGameClear();
+
 	// 다음 방으로 갈 때 화면의 카드를 지우는 함수
 	void ClearHandUI();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Reward")
 	void InitVictoryRewards();
+
+	
 
 
 	//보상 카드 3개
@@ -101,4 +114,8 @@ public:
 	// 뽑힌 3장의 카드 이름을 받아서 엑셀 데이터를 쏴주는 함수
 	UFUNCTION(BlueprintCallable, Category = "Reward")
 	void ApplyRewardCardsData(TArray<FName> RewardNames);
+
+	// 전투 종료를 알리는 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "State")
+	void OnCombatEnded();
 };

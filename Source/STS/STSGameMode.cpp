@@ -296,8 +296,14 @@ void ASTSGameMode::CheckVictory()
     if (AliveCount == 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 전투 승리!"));
-        if (MainUIWidget)
+        // 지금이 보스 층(5층)이거나 그 이상이라면 엔딩 화면
+        if (CurrentFloor >= BossFloor)
         {
+            MainUIWidget->ShowGameClear();
+        }
+        else
+        {
+            // 일반 층이라면? -> 평소처럼 카드 보상 화면!
             MainUIWidget->ShowVictory();
         }
     }
@@ -338,10 +344,36 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
     // 노드 종류에 따른 분기 처리
     if (NodeType == FName("Rest"))
     {
-        // 모닥불 로직 (예: 체력 30% 회복 후 다시 맵 UI 열기)
-        UE_LOG(LogTemp, Warning, TEXT("모닥불 도착! 휴식을 취합니다."));
-        // TODO: 모닥불 UI 띄우기
-        return; // 전투가 아니므로 여기서 함수 종료!
+        UE_LOG(LogTemp, Warning, TEXT("모닥불 방 진입! 스폰 시도 중..."));
+
+        // 블루프린트에 모닥불 클래스가 제대로 들어있는지 확인
+        if (!CampfireClassToSpawn)
+        {
+            UE_LOG(LogTemp, Error, TEXT("에러: CampfireClassToSpawn이 비어있습니다! BP_STSGameMode에서 다시 넣어주세요."));
+            return;
+        }
+
+        FActorSpawnParameters SpawnParams;
+        // 바닥에 살짝 겹쳐도 무조건 강제로 스폰
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        // 스폰 좌표 (적 스폰 위치와 동일하게 두시거나 적당히 조절)
+        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
+        FRotator SpawnRotation(0.0f, 0.0f, 0.0f);
+
+        AActor* Campfire = GetWorld()->SpawnActor<AActor>(CampfireClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
+
+        // 스폰이 진짜로 성공했는지 확인
+        if (Campfire)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("모닥불 스폰 완벽 성공!"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("에러: 모닥불 스폰 함수가 실패했습니다! "));
+        }
+
+        return; // 전투를 막기 위해 함수 종료
     }
 
     // 전투 노드라면 적 소환 (보스인지 확인)
@@ -414,4 +446,13 @@ void ASTSGameMode::AddCardToMasterDeck(FName NewCardName)
     // 내 영구 덱에 카드를 추가합니다!
     MasterDeck.Add(NewCardName);
     UE_LOG(LogTemp, Warning, TEXT("덱 강화 완료! 새 카드가 마스터 덱에 추가되었습니다: %s"), *NewCardName.ToString());
+}
+
+void ASTSGameMode::RestartGame()
+{
+    UE_LOG(LogTemp, Warning, TEXT("게임을 리셋하고 1층부터 다시 시작합니다!"));
+
+    // 현재 열려있는 레벨을 다시 열어서 게임을 초기 상태로 리셋
+    FString CurrentLevelName = GetWorld()->GetName();
+    UGameplayStatics::OpenLevel(this, FName(*CurrentLevelName), false);
 }
