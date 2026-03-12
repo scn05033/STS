@@ -67,8 +67,20 @@ void USTSCardWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 
 FReply USTSCardWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+    //드래그를 감지하지 않고 클릭만 처리!
+    if (bIsSmithingMode)
+    {
+        
+        // "나 강화하려고 클릭됐어!" 라고 블루프린트(WBP_TestCard)에 알려줌.
+        OnCardClickedForSmithing();
+
+        return FReply::Handled();
+    }
+
+
+
     // 왼쪽 마우스 버튼 감지
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+    else if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
     {
         // 드래그 감지 시작
         return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);

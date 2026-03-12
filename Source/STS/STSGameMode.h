@@ -132,6 +132,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map")
     TSubclassOf<class AActor> CampfireClassToSpawn;
 
+    //모루 추가
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Map")
+    TSubclassOf<class AActor> AnvilClassToSpawn;
+
     // 노드를 선택했을 때 다음 스테이지를 세팅하는 함수 
     UFUNCTION(BlueprintCallable, Category = "Map")
     void GoToNextNode(FName NodeType); // "Combat", "Rest", "Boss" 등
@@ -139,6 +143,10 @@ public:
     //게임 오버 시 게임을 재시작
     UFUNCTION(BlueprintCallable, Category = "Game")
     void RestartGame();
+
+    // 인덱스 번호와, 새로 끼워넣을 진화형 카드 이름표를 받습니다.
+    UFUNCTION(BlueprintCallable, Category = "Deck")
+    void UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID);
 
 protected:
     // 실제 상태 변경 로직

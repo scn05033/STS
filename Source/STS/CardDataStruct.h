@@ -57,4 +57,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsRewardable = true; // 보상으로 등장할 수 있는지 체크
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
+	FName UpgradedCardID;
 };

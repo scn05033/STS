@@ -17,16 +17,16 @@ class STS_API USTSCardWidget : public UUserWidget
 
 protected:
 
-    UPROPERTY(meta = (BindWidget))
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* CardName;
 
-    UPROPERTY(meta = (BindWidget))
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* Cost;
 
-    UPROPERTY(meta = (BindWidget))
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* CardDescription;
 
-    UPROPERTY(meta = (BindWidget))
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UImage* CardImage;
 
     // 마우스가 위젯 영역에 들어왔을 때 
@@ -57,4 +57,12 @@ public:
     FCardData GetCardData() const { return CurrentCardData; }
 
     FName CardRowName;
+
+    // 이 카드가 현재 대장간(강화 창)에 있는지 여부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card State")
+    bool bIsSmithingMode = false;
+
+    // 블루프린트에서 구현할 이벤트 (카드가 대장간에서 클릭되었을 때 발동)
+    UFUNCTION(BlueprintImplementableEvent, Category = "Events")
+    void OnCardClickedForSmithing();
 };

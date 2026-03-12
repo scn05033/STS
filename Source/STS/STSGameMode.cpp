@@ -357,20 +357,26 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
         // 바닥에 살짝 겹쳐도 무조건 강제로 스폰
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-        // 스폰 좌표 (적 스폰 위치와 동일하게 두시거나 적당히 조절)
-        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
-        FRotator SpawnRotation(0.0f, 0.0f, 0.0f);
+        if (CampfireClassToSpawn) {
+            FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
+            FRotator SpawnRotation(0.0f, 0.0f, 0.0f);
 
-        AActor* Campfire = GetWorld()->SpawnActor<AActor>(CampfireClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
-
+            AActor* Campfire = GetWorld()->SpawnActor<AActor>(CampfireClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
+        }
         // 스폰이 진짜로 성공했는지 확인
-        if (Campfire)
+       /*if (Campfire)
         {
             UE_LOG(LogTemp, Warning, TEXT("모닥불 스폰 완벽 성공!"));
         }
         else
         {
             UE_LOG(LogTemp, Error, TEXT("에러: 모닥불 스폰 함수가 실패했습니다! "));
+        }
+        */
+        if (AnvilClassToSpawn)
+        {
+            FVector AnvilLoc(-9420.0f, 4640.0f, 590.0f); // Y축을 500으로 (오른쪽)
+            GetWorld()->SpawnActor<AActor>(AnvilClassToSpawn, AnvilLoc, FRotator::ZeroRotator, SpawnParams);
         }
 
         return; // 전투를 막기 위해 함수 종료
@@ -455,4 +461,16 @@ void ASTSGameMode::RestartGame()
     // 현재 열려있는 레벨을 다시 열어서 게임을 초기 상태로 리셋
     FString CurrentLevelName = GetWorld()->GetName();
     UGameplayStatics::OpenLevel(this, FName(*CurrentLevelName), false);
+}
+
+void ASTSGameMode::UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID)
+{
+    //인덱스 유효성 검사
+    if (MasterDeck.IsValidIndex(CardIndex))
+    {
+        FName OldCard = MasterDeck[CardIndex];
+		MasterDeck[CardIndex] = UpgradedCardID; // 해당 인덱스의 카드를 업그레이드된 카드 ID로 교체
+
+        UE_LOG(LogTemp, Warning, TEXT("카드 강화 완료! [%s] ➡️ [%s]"), *OldCard.ToString(), *UpgradedCardID.ToString());
+    }
 }
