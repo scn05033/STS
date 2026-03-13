@@ -159,14 +159,17 @@ void ASTSGameMode::InitializeDeck()
     DrawPile.Empty();
     DiscardPile.Empty();
 
-    // 기본 타격 5장, 수비 5장을 넣는다고 가정
+    // 기본 덱 설정 (예시로 5장씩 생성)
     for (int i = 0; i < 5; ++i)
     {
-        DrawPile.Add(FName("STRIKE_BASIC")); 
-        DrawPile.Add(FName("DEFEND_BASIC")); 
-        //DrawPile.Add(FName("BASH"));
-        //DrawPile.Add(FName("Cleave"));
-
+      //  DrawPile.Add(FName("STRIKE_BASIC")); 
+      // DrawPile.Add(FName("DEFEND_BASIC")); 
+      // DrawPile.Add(FName("SHRUG_IT_OFF"));
+       // DrawPile.Add(FName("BASH"));
+       // DrawPile.Add(FName("Cleave"));
+        DrawPile.Add(FName("INFLAME"));
+        DrawPile.Add(FName("TWIN_STRIKE"));
+        DrawPile.Add(FName("SEEING_RED"));
     }
 
     // 덱 섞기 (언리얼 배열의 스왑 기능 활용)
@@ -272,6 +275,14 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
     {
         MainUIWidget->UpdateBlockText(CurrentBlock);
     }
+}
+
+void ASTSGameMode::AddStrength(int32 Amount)
+{
+    CurrentStrength += Amount;
+
+    // 로그로 잘 올라갔는지 확인!
+    UE_LOG(LogTemp, Warning, TEXT("힘 증가! 현재 힘: %d"), CurrentStrength);
 }
 
 void ASTSGameMode::CheckVictory()

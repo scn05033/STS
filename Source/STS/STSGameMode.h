@@ -54,6 +54,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
     int32 MaxHealth = 50;
 
+    // 현재 힘 수치 (블루프린트 UI에서도 읽을 수 있게 권한 부여)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+    int32 CurrentStrength = 0;
+
+    // 힘을 올려주는 함수
+    UFUNCTION(BlueprintCallable, Category = "Stats")
+    void AddStrength(int32 Amount);
+
     // 플레이어가 데미지를 받는 함수 (방어도를 먼저 깎는 로직 포함)
     void TakePlayerDamage(int32 Damage);
 
@@ -147,6 +155,8 @@ public:
     // 인덱스 번호와, 새로 끼워넣을 진화형 카드 이름표를 받습니다.
     UFUNCTION(BlueprintCallable, Category = "Deck")
     void UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID);
+
+
 
 protected:
     // 실제 상태 변경 로직

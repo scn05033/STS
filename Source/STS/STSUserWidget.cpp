@@ -170,6 +170,8 @@ void USTSUserWidget::UpdateBlockText(int32 CurrentBlock)
     }
 }
 
+
+
 void USTSUserWidget::UpdatePlayerHP(int32 CurrentHP, int32 MaxHP)
 {
     UE_LOG(LogTemp, Warning, TEXT("UI 체력 업데이트 요청됨! - 현재: %d / 최대: %d"), CurrentHP, MaxHP);
@@ -261,53 +263,110 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     // 카드 효과 발동!
     if (CardData.Type == FName("Attack"))
     {
-        // 내 공격력(약화) 먼저 일괄 계산! (광역기든 단일기든 똑같이 약화 적용)
-        int32 FinalPlayerDamage = CardData.BaseDamage;
-        if (GM->WeakStacks > 0)
+        // [힘(Strength)] 가장 먼저 계산! (기본 데미지 + 내 힘)
+        int32 DamageWithStrength = CardData.BaseDamage;
+        if (GM)
         {
-            FinalPlayerDamage = FMath::FloorToInt(CardData.BaseDamage * 0.75f);
-            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 내 공격력이 %d 에서 %d 로 감소했습니다!"), CardData.BaseDamage, FinalPlayerDamage);
+            DamageWithStrength += GM->CurrentStrength;
         }
 
-        // 광역 공격일 때
-        if (CardData.bIsAoE)
+        // [약화(Weak)] 계산! (힘이 더해진 최종 데미지에서 25% 깎임)
+        int32 FinalPlayerDamage = DamageWithStrength;
+        if (GM && GM->WeakStacks > 0)
         {
-            TArray<AActor*> FoundEnemies;
-            // "CurrentBattle" 태그를 가진 방 안의 모든 적을 싹 다 불러옵니다.
-            UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+            FinalPlayerDamage = FMath::FloorToInt(DamageWithStrength * 0.75f);
+            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 힘 적용 데미지 %d 가 %d 로 감소했습니다!"), DamageWithStrength, FinalPlayerDamage);
+        }
 
-            for (AActor* Actor : FoundEnemies)
+        // [다단 히트(HitCount)] 엑셀 값이 0일 경우를 대비한 안전장치 (최소 1번은 때림)
+        int32 ActualHitCount = FMath::Max(1, CardData.HitCount);
+
+        // 타격 횟수만큼 반복해서 때리기!
+        for (int32 HitIndex = 0; HitIndex < ActualHitCount; ++HitIndex)
+        {
+            // 광역 공격일 때
+            if (CardData.bIsAoE)
             {
-                if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+                TArray<AActor*> FoundEnemies;
+                // "CurrentBattle" 태그를 가진 방 안의 모든 적을 싹 다 불러옵니다.
+                UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+
+                for (AActor* Actor : FoundEnemies)
                 {
-                    // 모든 적에게 각각 데미지 적용! (적의 취약 스택은 알아서 각각 계산)
-                    UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-                    UE_LOG(LogTemp, Warning, TEXT("[광역 적중] %s 에게 %d 데미지!"), *Enemy->GetName(), FinalPlayerDamage);
+                    if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+                    {
+                        // 에너미 쪽에 데미지 전달 (에너미의 TakeDamage에서 본인 취약 1.5배를 알아서 계산합니다!)
+                        UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
+                        UE_LOG(LogTemp, Warning, TEXT("[광역 %d타] %s 에게 %d 데미지 전달!"), HitIndex + 1, *Enemy->GetName(), FinalPlayerDamage);
+                    }
                 }
             }
-        }
-        // 단일 공격일 때
-        else if (TargetEnemy)
-        {
-            UGameplayStatics::ApplyDamage(TargetEnemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-            UE_LOG(LogTemp, Warning, TEXT("[단일 적중] %s 에게 %d 데미지!"), *TargetEnemy->GetName(), FinalPlayerDamage);
-
-            // [상태이상 부여] 강타처럼 적에게 디버프를 거는 카드라면? (기존 코드 유지)
-            if (CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
+            // 단일 공격일 때
+            else if (TargetEnemy)
             {
-                if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
+                UGameplayStatics::ApplyDamage(TargetEnemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
+                UE_LOG(LogTemp, Warning, TEXT("[단일 %d타] %s 에게 %d 데미지 전달!"), HitIndex + 1, *TargetEnemy->GetName(), FinalPlayerDamage);
+
+                // [상태이상 부여] 다단 히트일 경우, 디버프는 첫 타격에 딱 한 번만 걸리도록 처리!
+                if (HitIndex == 0 && CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
                 {
-                    EnemyChar->VulnerableStacks += CardData.StatusAmount;
-                    UE_LOG(LogTemp, Warning, TEXT("적에게 '취약' %d 스택 부여!"), CardData.StatusAmount);
+                    if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
+                    {
+                        EnemyChar->VulnerableStacks += CardData.StatusAmount;
+                        UE_LOG(LogTemp, Warning, TEXT("적에게 '취약' %d 스택 부여!"), CardData.StatusAmount);
+                    }
                 }
             }
-        }
+        } // 다단 히트 For Loop 끝
     }
     // 수비 카드일 때
-    else if (CardData.Type == FName("Skill") || CardData.Type == FName("Defend"))
+    else if (CardData.Type == FName("Defend"))
     {
         GM->AddBlock(CardData.BaseBlock);
         UE_LOG(LogTemp, Warning, TEXT("방어도 증가: %d"), CardData.BaseBlock);
+        if (CardData.DrawAmount > 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("카드 드로우 효과 발동! %d 장 드로우"), CardData.DrawAmount);
+            AddCards(CardData.DrawAmount);
+		}
+    }
+    else if (CardData.Type == FName("Power"))
+    {
+        // 엑셀에 적어둔 StatusType이 "STRENGTH" 라면?
+        if (CardData.StatusType == FName("STRENGTH"))
+        {
+            // 플레이어의 힘을 StatusAmount(2) 만큼 올려줍니다!
+            GM->AddStrength(CardData.StatusAmount);
+        }
+    }
+    else if (CardData.Type == FName("Skill"))
+    {
+        // 방어도(Block) 획득 로직이 있다면 
+        if (CardData.BaseBlock > 0 && GM)
+        {
+            // 예: GM->CurrentBlock += CardData.BaseBlock;
+            UE_LOG(LogTemp, Warning, TEXT("[방어] 방어도를 %d 얻었습니다!"), CardData.BaseBlock);
+        }
+
+        // StatusType이 ENERGY 라면 에너지 펌핑
+        if (CardData.StatusAmount > 0 && CardData.StatusType == FName("ENERGY"))
+        {
+            if (GM)
+            {
+                // 플레이어의 현재 에너지에 StatusAmount(2)를 추가
+                GM->CurrentEnergy += CardData.StatusAmount;
+
+                UE_LOG(LogTemp, Warning, TEXT("[에너지 펌핑] 에너지를 %d 얻었습니다! 현재 에너지: %d"), CardData.StatusAmount, GM->CurrentEnergy);
+
+                UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
+            }
+        }
+
+        //  드로우 효과가 있다면 여기서 처리!
+        if (CardData.DrawAmount > 0)
+        {
+            // DrawCards(CardData.DrawAmount);
+        }
     }
 
     // 카드 버리기

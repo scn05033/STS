@@ -60,4 +60,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName UpgradedCardID;
+
+	//카드 드로우 수치
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 DrawAmount;
+
+	// 타격 횟수 (기본값은 무조건 1번 때리도록 1로 설정)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
+	int32 HitCount = 1;
+
 };

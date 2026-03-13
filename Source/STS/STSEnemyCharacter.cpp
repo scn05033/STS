@@ -37,17 +37,28 @@ void ASTSEnemyCharacter::BeginPlay()
 float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	// 부모 클래스의 기본 로직 수행 (필수)
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	//float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
 	// 들어온 원래 데미지
-	float FinalDamage = DamageAmount;
+	float BaseDamage = DamageAmount;
+
+	// 게임모드에서 플레이어의 '힘(Strength)' 가져오기
+	if (ASTSGameMode* GameMode = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		
+		//BaseDamage += GameMode->CurrentStrength;
+		UE_LOG(LogTemp, Warning, TEXT("[스탯 적용] 힘이 더해진 데미지: %f"), BaseDamage);
+	}
+	float FinalDamage = BaseDamage;
 
 	// [상태이상] 취약(Vulnerable) 스택이 0보다 크면 데미지 1.5배 (반올림)
 	if (VulnerableStacks > 0)
 	{
-		ActualDamage = DamageAmount * 1.5f;
-		UE_LOG(LogTemp, Warning, TEXT("[취약 발동] 데미지가 %f 에서 %f 로 증폭되었습니다!"), DamageAmount, ActualDamage);
+		FinalDamage = BaseDamage * 1.5f;
+		UE_LOG(LogTemp, Warning, TEXT("[취약 발동] 데미지가 %f 에서 %f 로 증폭되었습니다!"), BaseDamage, FinalDamage);
 	}
+	float ActualDamage = Super::TakeDamage(FinalDamage, DamageEvent, EventInstigator, DamageCauser);
+
 
 	
 
