@@ -24,6 +24,7 @@ ASTSGameMode::ASTSGameMode()
 void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
 {
     UE_LOG(LogTemp, Warning, TEXT("=== 전투 시작! (Start Combat) ==="));
+    UE_LOG(LogTemp, Warning, TEXT("[디버그] 게임/전투 시작 직후 MasterDeck 개수: %d"), MasterDeck.Num());
 	MainUIWidget = InUIWidget;
     TurnNumber = 1;
 
@@ -111,6 +112,7 @@ void ASTSGameMode::StartEnemyTurn()
                 {
                     if (Enemy->ActorHasTag(FName("CurrentBattle")))
                     {
+                        Enemy->CurrentBlock = 0;
                         Enemy->ExecuteIntent(this);
 
                     }
@@ -155,24 +157,37 @@ void ASTSGameMode::AddBlock(int32 Amount)
 
 void ASTSGameMode::InitializeDeck()
 {
-    //비우고 시작
+    // [게임 최초 시작] 내 지갑(MasterDeck)에 기본 카드 지급
+    // 만약 덱이 0장일 때만 카드를 줍니다. 
+    if (MasterDeck.Num() == 0)
+    {
+        for (int i = 0; i < 5; ++i)
+        {
+            MasterDeck.Add(FName("STRIKE_BASIC"));
+            // MasterDeck.Add(FName("DEFEND_BASIC")); 
+
+            //MasterDeck.Add(FName("SHRUG_IT_OFF"));
+
+            // MasterDeck.Add(FName("BASH"));
+
+            // MasterDeck.Add(FName("Cleave"));
+
+
+            MasterDeck.Add(FName("INFLAME"));
+            MasterDeck.Add(FName("TWIN_STRIKE"));
+            MasterDeck.Add(FName("SEEING_RED"));
+        }
+        UE_LOG(LogTemp, Warning, TEXT("마스터 덱 최초 생성 완료! 내 전 재산: %d장"), MasterDeck.Num());
+    }
+
+    // [전투 준비] 테이블 싹 비우기
     DrawPile.Empty();
     DiscardPile.Empty();
 
-    // 기본 덱 설정 (예시로 5장씩 생성)
-    for (int i = 0; i < 5; ++i)
-    {
-      //  DrawPile.Add(FName("STRIKE_BASIC")); 
-      // DrawPile.Add(FName("DEFEND_BASIC")); 
-      // DrawPile.Add(FName("SHRUG_IT_OFF"));
-       // DrawPile.Add(FName("BASH"));
-       // DrawPile.Add(FName("Cleave"));
-        DrawPile.Add(FName("INFLAME"));
-        DrawPile.Add(FName("TWIN_STRIKE"));
-        DrawPile.Add(FName("SEEING_RED"));
-    }
+    // [핵심 로직] 내 전 재산을 이번 전투 뽑을 카드 더미로 완벽 복사
+    DrawPile = MasterDeck;
 
-    // 덱 섞기 (언리얼 배열의 스왑 기능 활용)
+    // [셔플] 뽑을 카드 더미 섞기
     const int32 NumCards = DrawPile.Num();
     for (int32 i = 0; i < NumCards - 1; ++i)
     {
@@ -180,7 +195,7 @@ void ASTSGameMode::InitializeDeck()
         DrawPile.Swap(i, SwapIdx);
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("덱 초기화 및 셔플 완료! 총 %d장"), DrawPile.Num());
+    UE_LOG(LogTemp, Warning, TEXT("전투 덱(DrawPile) 세팅 및 셔플 완료! 전투에 쓸 카드: %d장"), DrawPile.Num());
 }
 
 void ASTSGameMode::AddToDiscardPile(FName CardRowName)
@@ -307,6 +322,7 @@ void ASTSGameMode::CheckVictory()
     if (AliveCount == 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 전투 승리!"));
+        UE_LOG(LogTemp, Error, TEXT("[디버그] 전투 종료 직후 MasterDeck 개수: %d"), MasterDeck.Num());
         // 지금이 보스 층(5층)이거나 그 이상이라면 엔딩 화면
         if (CurrentFloor >= BossFloor)
         {
@@ -462,7 +478,8 @@ void ASTSGameMode::AddCardToMasterDeck(FName NewCardName)
 {
     // 내 영구 덱에 카드를 추가합니다!
     MasterDeck.Add(NewCardName);
-    UE_LOG(LogTemp, Warning, TEXT("덱 강화 완료! 새 카드가 마스터 덱에 추가되었습니다: %s"), *NewCardName.ToString());
+    //UE_LOG(LogTemp, Warning, TEXT("덱 강화 완료! 새 카드가 마스터 덱에 추가되었습니다: %s"), *NewCardName.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("[디버그] 방금 카드를 Add 했습니다. 현재 MasterDeck 총 카드 수: %d"), MasterDeck.Num());
 }
 
 void ASTSGameMode::RestartGame()
@@ -485,3 +502,4 @@ void ASTSGameMode::UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID)
         UE_LOG(LogTemp, Warning, TEXT("카드 강화 완료! [%s] ➡️ [%s]"), *OldCard.ToString(), *UpgradedCardID.ToString());
     }
 }
+

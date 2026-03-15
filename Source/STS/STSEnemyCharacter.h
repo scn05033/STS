@@ -51,6 +51,14 @@ public:
 	// 턴이 끝날 때 상태이상을 1씩 줄여주는 함수
 	void DecreaseStatusEffects();
 
+	// 적의 현재 방어도
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	int32 CurrentBlock = 0;
+
+	// 방어도를 획득하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void AddBlock(int32 BlockAmount);
+
 
 protected:
 	

@@ -45,7 +45,7 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	// 게임모드에서 플레이어의 '힘(Strength)' 가져오기
 	if (ASTSGameMode* GameMode = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(this)))
 	{
-		
+
 		//BaseDamage += GameMode->CurrentStrength;
 		UE_LOG(LogTemp, Warning, TEXT("[스탯 적용] 힘이 더해진 데미지: %f"), BaseDamage);
 	}
@@ -60,40 +60,66 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	float ActualDamage = Super::TakeDamage(FinalDamage, DamageEvent, EventInstigator, DamageCauser);
 
 
-	
+
 
 	// 데미지가 0보다 클 때만 처리
 	if (ActualDamage > 0.0f)
 	{
-		// 체력 감소
-		CurrentHealth -= ActualDamage;
+		// 방어도(Block) 연산 시작 
+		// float형 데미지를 int32로 변환 (STS는 주로 정수 데미지를 사용하므로 반올림)
+		int32 DamageToHealth = FMath::RoundToInt(ActualDamage);
 
-		// 체력이 0 미만으로 내려가지 않게 막음
-		if (CurrentHealth < 0.0f) CurrentHealth = 0.0f;
-
-		// 위젯 업데이트 호출!
-		if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
+		if (CurrentBlock > 0)
 		{
-			HPWidget->UpdateHP(CurrentHealth, MaxHealth);
-		}
-
-		
-
-		// 사망 처리
-		if (CurrentHealth <= 0.0f)
-		{
-			UE_LOG(LogTemp, Error, TEXT("%s 사망! (Die)"), *GetName());
-			// TODO: 나중에 사망 애니메이션 재생 및 파괴 로직 추가
-
-			// 승리 확인 요청
-			ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-			if (GM)
+			if (CurrentBlock >= DamageToHealth)
 			{
-				GM->CheckVictory();
+				// 케이스 A: 방어도가 데미지보다 높거나 같아서 전부 막아냄
+				CurrentBlock -= DamageToHealth;
+				DamageToHealth = 0; // 체력에 들어갈 데미지 소멸
+
+				UE_LOG(LogTemp, Warning, TEXT("[방어 성공] 데미지를 모두 막아냈습니다! 남은 방어도: %d"), CurrentBlock);
+			}
+			else
+			{
+				// 케이스 B: 데미지가 너무 세서 방어도가 뚫림
+				DamageToHealth -= CurrentBlock; // 방어도만큼 데미지 차감
+				UE_LOG(LogTemp, Warning, TEXT("[방어 관통] 방어도가 %d 뚫렸습니다! 남은 데미지: %d"), CurrentBlock, DamageToHealth);
+
+				CurrentBlock = 0; // 방어도는 완전히 박살남
 			}
 
-			// 내 캐릭터 월드에서 삭제
-			Destroy();
+			// 위젯에 깎인 방어도 업데이트 (TODO: HPWidget에 함수 추가 필요)
+			// if (HPWidget) HPWidget->UpdateBlock(CurrentBlock);
+		}
+
+		// 체력(HP) 연산 (방어도를 뚫고 들어온 데미지만 적용) 
+		if (DamageToHealth > 0)
+		{
+			CurrentHealth -= DamageToHealth;
+
+			// 체력이 0 미만으로 내려가지 않게 막음
+			if (CurrentHealth < 0.0f) CurrentHealth = 0.0f;
+
+			// 위젯 업데이트 호출!
+			if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
+			{
+				HPWidget->UpdateHP(CurrentHealth, MaxHealth);
+			}
+
+			// 사망 처리
+			if (CurrentHealth <= 0.0f)
+			{
+				UE_LOG(LogTemp, Error, TEXT("%s 사망! (Die)"), *GetName());
+
+				// 승리 확인 요청
+				ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+				if (GM)
+				{
+					GM->CheckVictory();
+				}
+
+				Destroy();
+			}
 		}
 	}
 
@@ -152,7 +178,7 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	else if (CurrentIntentType == TEXT("Defend"))
 	{
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
-		// TODO: 나중에 적 자신의 방어도를 올리는 함수 호출
+		AddBlock(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Debuff"))
 	{
@@ -173,5 +199,19 @@ void ASTSEnemyCharacter::DecreaseStatusEffects()
 	{
 		VulnerableStacks--;
 		UE_LOG(LogTemp, Warning, TEXT("적의 취약 스택이 1 감소했습니다. (남은 스택: %d)"), VulnerableStacks);
+	}
+}
+
+void ASTSEnemyCharacter::AddBlock(int32 BlockAmount)
+{
+	CurrentBlock += BlockAmount;
+
+	UE_LOG(LogTemp, Warning, TEXT("[전투] 적이 방어도를 %d 획득했습니다. (총 방어도: %d)"), BlockAmount, CurrentBlock);
+
+	// UI 업데이트 
+	if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
+	{
+		// TODO: HPWidget에 방어도를 표시하는 함수를 미리 만들어두셨다면 여기서 호출
+		
 	}
 }

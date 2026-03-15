@@ -156,7 +156,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Deck")
     void UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID);
 
-
+   
 
 protected:
     // 실제 상태 변경 로직
