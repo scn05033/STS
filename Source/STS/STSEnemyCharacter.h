@@ -59,6 +59,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void AddBlock(int32 BlockAmount);
 
+	// 보스 여부 (에디터에서 수정 가능)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	bool bIsBoss = false;
+
+	// 적의 현재 힘(Strength) 스탯
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	int32 CurrentStrength = 0;
+
+	// 다단히트 타수 저장용
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	int32 CurrentHitCount = 1;
 
 protected:
 	

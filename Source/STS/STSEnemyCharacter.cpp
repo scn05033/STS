@@ -128,10 +128,22 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 void ASTSEnemyCharacter::DecideNextIntent()
 {
-	// 0: 공격, 1: 방어, 2: 약화 (각각 33% 확률)
-	int32 RandomChoice = FMath::RandRange(0, 2);
+	
+	int32 RandomChoice = 0;
+
+	// 보스일 경우 5개의 패턴을 뽑음.
+	if (bIsBoss)
+	{
+		RandomChoice = FMath::RandRange(0, 4);
+	}
+	else
+	{
+		// 일반 몬스터일 경우: 기존대로 0, 1, 2 중 하나만 뽑음
+		RandomChoice = FMath::RandRange(0, 2);
+	}
 
 	USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject());
+	CurrentHitCount = 1; // 매 턴마다 기본 타수를 1로 초기화 (중요!)
 
 	if (RandomChoice == 0)
 	{
@@ -153,7 +165,7 @@ void ASTSEnemyCharacter::DecideNextIntent()
 			HPWidget->UpdateIntentText(FString::Printf(TEXT("방%d"), CurrentIntentValue));
 		}
 	}
-	else 
+	else if (RandomChoice == 2)
 	{
 		CurrentIntentType = TEXT("Debuff");
 		CurrentIntentValue = 2; // 플레이어에게 줄 약화 스택 (예: 2스택)
@@ -164,6 +176,23 @@ void ASTSEnemyCharacter::DecideNextIntent()
 			HPWidget->UpdateIntentText(FString::Printf(TEXT("약화%d"), CurrentIntentValue));
 		}
 	}
+	else if (RandomChoice == 3)
+	{
+		// 보스 추가 패턴 A: 힘 증가
+		CurrentIntentType = TEXT("BuffStrength");
+		CurrentIntentValue = 2; // 한 번에 오르는 힘 수치
+		if (HPWidget) HPWidget->UpdateIntentText(FString::Printf(TEXT("힘+%d"), CurrentIntentValue));
+	}
+	else if (RandomChoice == 4)
+	{
+		// 보스 추가 패턴 B: 연속 타격
+		CurrentIntentType = TEXT("MultiHit");
+		CurrentIntentValue = 4; // 1타당 기본 데미지
+		CurrentHitCount = 3;    // 3번 연속으로 때림
+
+		// UI 표시: "연타 6x3" (기본데미지+힘 x 타수) 형태로 띄워줍니다.
+		if (HPWidget) HPWidget->UpdateIntentText(FString::Printf(TEXT("연타 %dx%d"), CurrentIntentValue + CurrentStrength, CurrentHitCount));
+	}
 }
 
 void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
@@ -172,6 +201,7 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 
 	if (CurrentIntentType == TEXT("Attack"))
 	{
+		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 공격력에 힘(Strength) 합산
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 데미지로 공격합니다!"), CurrentIntentValue);
 		GM->TakePlayerDamage(CurrentIntentValue);
 	}
@@ -188,6 +218,24 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 		{
 			// 플레이어에게 약화 2스택을 줍니다.
 			GM->AddWeak(CurrentIntentValue);
+		}
+	}
+	else if (CurrentIntentType == TEXT("BuffStrength"))
+	{
+		// 보스 추가 패턴 A: 힘 획득
+		CurrentStrength += CurrentIntentValue;
+		UE_LOG(LogTemp, Warning, TEXT(" [보스 패턴] 보스가 포효하며 힘을 %d 얻었습니다! (현재 힘: %d)"), CurrentIntentValue, CurrentStrength);
+	}
+	else if (CurrentIntentType == TEXT("MultiHit"))
+	{
+		// 보스 추가 패턴 B: 연속 타격 실행
+		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 1타당 데미지 계산
+		UE_LOG(LogTemp, Warning, TEXT(" [보스 패턴] 보스가 %d의 데미지로 %d번 연속 공격합니다!"), FinalDamage, CurrentHitCount);
+
+		// For 루프를 돌려서 플레이어에게 데미지를 입힘.
+		for (int i = 0; i < CurrentHitCount; i++)
+		{
+			GM->TakePlayerDamage(FinalDamage);
 		}
 	}
 }
