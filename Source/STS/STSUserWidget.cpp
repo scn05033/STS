@@ -264,73 +264,55 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     // 카드 효과 발동!
     if (CardData.Type == FName("Attack"))
     {
-        //애니메이션 재생 추가 
-        if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(PC->GetPawn()))
-        {
-            //PlayerChar->PlayAttackAnim(); 
-            // 단일 타겟팅 공격일 때만 타겟을 넘겨줍니다!
-            if (TargetEnemy)
-            {
-                PlayerChar->DashAndAttack(TargetEnemy); // "저놈한테 돌진해서 때려!"
-            }
-
-        }
-
-        // [힘(Strength)] 가장 먼저 계산! (기본 데미지 + 내 힘)
+        // [힘(Strength)] 기본 데미지 + 내 힘
         int32 DamageWithStrength = CardData.BaseDamage;
-        if (GM)
-        {
-            DamageWithStrength += GM->CurrentStrength;
-        }
+        if (GM) { DamageWithStrength += GM->CurrentStrength; }
 
-        // [약화(Weak)] 계산! (힘이 더해진 최종 데미지에서 25% 깎임)
+        // [약화(Weak)] 데미지 감소
         int32 FinalPlayerDamage = DamageWithStrength;
         if (GM && GM->WeakStacks > 0)
         {
             FinalPlayerDamage = FMath::FloorToInt(DamageWithStrength * 0.75f);
-            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 힘 적용 데미지 %d 가 %d 로 감소했습니다!"), DamageWithStrength, FinalPlayerDamage);
+            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 힘 적용 데미지 %d 가 %d 로 감소!"), DamageWithStrength, FinalPlayerDamage);
         }
 
-        // [다단 히트(HitCount)] 엑셀 값이 0일 경우를 대비한 안전장치 (최소 1번은 때림)
-        int32 ActualHitCount = FMath::Max(1, CardData.HitCount);
-
-        // 타격 횟수만큼 반복해서 때리기!
-        for (int32 HitIndex = 0; HitIndex < ActualHitCount; ++HitIndex)
+        // [단일 공격일 때]
+        if (!CardData.bIsAoE && TargetEnemy)
         {
-            // 광역 공격일 때
-            if (CardData.bIsAoE)
+            if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(PC->GetPawn()))
             {
-                TArray<AActor*> FoundEnemies;
-                // "CurrentBattle" 태그를 가진 방 안의 모든 적을 싹 다 불러옵니다.
-                UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+                // 캐릭터에게 '데미지'와 '타겟(C++)'을 완벽하게 기억시킵니
+                PlayerChar->PendingDamage = FinalPlayerDamage;
+                PlayerChar->CurrentTarget = TargetEnemy;
 
-                for (AActor* Actor : FoundEnemies)
+				// 돌진해서 공격하는 애니메이션 재생 (데미지 적용은 애니메이션 노티파이에서)   
+                PlayerChar->DashAndAttack(TargetEnemy);
+            }
+
+            // [상태이상 부여] 
+            if (CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
+            {
+                if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
                 {
-                    if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
-                    {
-                        // 에너미 쪽에 데미지 전달 (에너미의 TakeDamage에서 본인 취약 1.5배를 알아서 계산합니다!)
-                        UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-                        UE_LOG(LogTemp, Warning, TEXT("[광역 %d타] %s 에게 %d 데미지 전달!"), HitIndex + 1, *Enemy->GetName(), FinalPlayerDamage);
-                    }
+                    EnemyChar->VulnerableStacks += CardData.StatusAmount;
                 }
             }
-            // 단일 공격일 때
-            else if (TargetEnemy)
-            {
-                UGameplayStatics::ApplyDamage(TargetEnemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-                UE_LOG(LogTemp, Warning, TEXT("[단일 %d타] %s 에게 %d 데미지 전달!"), HitIndex + 1, *TargetEnemy->GetName(), FinalPlayerDamage);
+        }
+        // [광역 공격일 때] 
+        else if (CardData.bIsAoE)
+        {
+            TArray<AActor*> FoundEnemies;
+            UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
 
-                // [상태이상 부여] 다단 히트일 경우, 디버프는 첫 타격에 딱 한 번만 걸리도록 처리!
-                if (HitIndex == 0 && CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
+            for (AActor* Actor : FoundEnemies)
+            {
+                if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
                 {
-                    if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
-                    {
-                        EnemyChar->VulnerableStacks += CardData.StatusAmount;
-                        UE_LOG(LogTemp, Warning, TEXT("적에게 '취약' %d 스택 부여!"), CardData.StatusAmount);
-                    }
+                    // 광역은 당장 애니메이션 세팅이 안 되어 있으니 예전처럼 즉시 데미지 처리
+                    UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
                 }
             }
-        } // 다단 히트 For Loop 끝
+        }
     }
     // 수비 카드일 때
     else if (CardData.Type == FName("Defend"))

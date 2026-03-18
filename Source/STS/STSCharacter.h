@@ -81,6 +81,14 @@ public:
 	// C++가 호출하면, 실제 이동과 애니메이션은 블루프린트에서 처리
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void DashAndAttack(AActor* TargetActor);
+
+	// 잠시 데미지를 보관할 변수
+	int32 PendingDamage;
+	AActor* CurrentTarget;
+
+	// AnimBP에서 호출할 실제 타격 함수
+	UFUNCTION(BlueprintCallable)
+	void ExecuteHit();
 	
 
 };

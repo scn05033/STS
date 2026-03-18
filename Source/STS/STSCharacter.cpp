@@ -9,6 +9,7 @@
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Kismet/GameplayStatics.h"
 #include "InputActionValue.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -136,5 +137,17 @@ void ASTSCharacter::PlayAttackAnim()
 	if (AttackMontage)
 	{
 		PlayAnimMontage(AttackMontage);
+	}
+}
+
+void ASTSCharacter::ExecuteHit()
+{
+	if (CurrentTarget && PendingDamage > 0)
+	{
+		// 여기서 진짜 ApplyDamage를 실행
+		UGameplayStatics::ApplyDamage(CurrentTarget, PendingDamage, GetController(), this, UDamageType::StaticClass());
+
+		// 이펙트나 사운드를 C++에서 터뜨려도 좋습니다.
+		UE_LOG(LogTemp, Warning, TEXT("노티파이 발생! 적에게 %d 데미지를 입혔습니다."), PendingDamage);
 	}
 }
