@@ -128,3 +128,13 @@ void ASTSCharacter::Look(const FInputActionValue& Value)
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
 }
+
+
+void ASTSCharacter::PlayAttackAnim()
+{
+	// 몽타주가 세팅되어 있다면 재생해라!
+	if (AttackMontage)
+	{
+		PlayAnimMontage(AttackMontage);
+	}
+}

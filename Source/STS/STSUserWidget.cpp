@@ -15,6 +15,7 @@
 #include "CardDataStruct.h"
 #include "Components/ProgressBar.h"
 #include "DrawDebugHelpers.h"
+#include "STSCharacter.h"
 #include "GameFramework/PlayerController.h" 
 #include "Engine/World.h"
 
@@ -263,6 +264,18 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     // 카드 효과 발동!
     if (CardData.Type == FName("Attack"))
     {
+        //애니메이션 재생 추가 
+        if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(PC->GetPawn()))
+        {
+            //PlayerChar->PlayAttackAnim(); 
+            // 단일 타겟팅 공격일 때만 타겟을 넘겨줍니다!
+            if (TargetEnemy)
+            {
+                PlayerChar->DashAndAttack(TargetEnemy); // "저놈한테 돌진해서 때려!"
+            }
+
+        }
+
         // [힘(Strength)] 가장 먼저 계산! (기본 데미지 + 내 힘)
         int32 DamageWithStrength = CardData.BaseDamage;
         if (GM)

@@ -31,6 +31,8 @@ Saved/
 # 🔴 Temples of Cambodia 에셋 전체 제외
 Content/TemplesOfCambodia/
 Content/templesofcambodia/
+Content/ParagonGreystone/
+Content/ParagonKhaimera/
 
 # 🔴 라이트 빌드 데이터(다시 만들 수 있으니 제외)
 Content/Main_BuiltData.uasset

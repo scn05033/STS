@@ -178,7 +178,11 @@ protected:
 	USTSUserWidget* MainUIWidget;
 
 
+    // 에디터에서 기본 폰 클래스를 설정할 수 있도록 노출합니다.
+   // UPROPERTY(EditDefaultsOnly, Category = "Game Settings")
+//    TSubclassOf<APawn> CustomDefaultPawnClass;
 
+   // virtual void BeginPlay() override;
    
 
    

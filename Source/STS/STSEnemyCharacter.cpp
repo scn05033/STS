@@ -203,6 +203,12 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	{
 		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 공격력에 힘(Strength) 합산
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 데미지로 공격합니다!"), CurrentIntentValue);
+		//애니메이션 재생 로직 추가
+		//
+		if (AttackMontage)
+		{
+			PlayAnimMontage(AttackMontage);
+		}
 		GM->TakePlayerDamage(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Defend"))

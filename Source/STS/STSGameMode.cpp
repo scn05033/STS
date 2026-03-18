@@ -12,19 +12,31 @@ ASTSGameMode::ASTSGameMode()
 {
     // set default pawn class to our Blueprinted character
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
-    if (PlayerPawnBPClass.Class != NULL)
+   if (PlayerPawnBPClass.Class != NULL)
     {
         DefaultPawnClass = PlayerPawnBPClass.Class;
-    }
-
+   }
+   
     // 기본값 설정
     CurrentTurnState = ETurnState::PlayerTurn;
 }
+/**void ASTSGameMode::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // 에디터에서 클래스를 할당했다면 그것을 기본 폰으로 사용
+    if (CustomDefaultPawnClass != nullptr)
+    {
+        DefaultPawnClass = CustomDefaultPawnClass;
+    }
+}*/
 
 void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
 {
     UE_LOG(LogTemp, Warning, TEXT("=== 전투 시작! (Start Combat) ==="));
     UE_LOG(LogTemp, Warning, TEXT("[디버그] 게임/전투 시작 직후 MasterDeck 개수: %d"), MasterDeck.Num());
+  
+
 	MainUIWidget = InUIWidget;
     TurnNumber = 1;
 
