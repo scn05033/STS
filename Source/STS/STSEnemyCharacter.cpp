@@ -1,6 +1,7 @@
 ﻿#include "STSEnemyCharacter.h"
 #include "STSEnemyHPWidget.h"
 #include "STSGameMode.h"
+#include "Sound/SoundBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/WidgetComponent.h"
 
@@ -106,6 +107,17 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 				HPWidget->UpdateHP(CurrentHealth, MaxHealth);
 			}
 
+			// 애니메이션 재생과 동시에 사운드 재생
+			if (HitSoundAsset) 
+			{
+				UGameplayStatics::PlaySoundAtLocation(this, HitSoundAsset, GetActorLocation());
+			}
+
+			if (CurrentHealth > 0.0f)
+			{
+				if (HitReactMontage) { PlayAnimMontage(HitReactMontage); }
+			}
+
 			// 사망 처리
 			if (CurrentHealth <= 0.0f)
 			{
@@ -201,15 +213,20 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 
 	if (CurrentIntentType == TEXT("Attack"))
 	{
-		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 공격력에 힘(Strength) 합산
-		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 데미지로 공격합니다!"), CurrentIntentValue);
-		//애니메이션 재생 로직 추가
-		//
-		if (AttackMontage)
+		// 데미지 계산 및 '기억' 
+		int32 FinalDamage = CurrentIntentValue + CurrentStrength;
+
+		
+		this->PendingDamage = FinalDamage;
+
+		UE_LOG(LogTemp, Warning, TEXT("적이 %d의 데미지로 공격을 준비합니다!"), PendingDamage);
+
+		// 플레이어(타겟)를 찾아서 돌진 명령
+		if (ACharacter* PlayerChar = Cast<ACharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
 		{
-			PlayAnimMontage(AttackMontage);
+			
+			DashAndAttack(PlayerChar);
 		}
-		GM->TakePlayerDamage(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Defend"))
 	{
@@ -267,5 +284,22 @@ void ASTSEnemyCharacter::AddBlock(int32 BlockAmount)
 	{
 		// TODO: HPWidget에 방어도를 표시하는 함수를 미리 만들어두셨다면 여기서 호출
 		
+	}
+}
+
+void ASTSEnemyCharacter::ExecuteHit()
+{
+	if (PendingDamage > 0)
+	{
+		//GameMode를 불러옵니다.
+		ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(this));
+		if (GM)
+		{
+			// GameMode의 함수를 호출합니다
+			GM->TakePlayerDamage(PendingDamage);
+
+			// 데미지 초기화
+			PendingDamage = 0;
+		}
 	}
 }

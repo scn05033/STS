@@ -54,7 +54,8 @@ public:
 	// 적의 현재 방어도
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
 	int32 CurrentBlock = 0;
-
+	int32 PendingDamage = 0;
+	
 	// 방어도를 획득하는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void AddBlock(int32 BlockAmount);
@@ -74,6 +75,17 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	UAnimMontage* AttackMontage;
+
+	// 블루프린트에서 피격 몽타주를 넣을 수 있는 칸 만들기
+	UPROPERTY(EditAnyWhere, BlueprintReadWrite, Category = "Animation")
+	UAnimMontage* HitReactMontage;
+	USoundBase* HitSoundAsset;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void DashAndAttack(AActor* TargetActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ExecuteHit();
 protected:
 	
 

@@ -108,16 +108,14 @@ void ASTSGameMode::EndPlayerTurn()
 void ASTSGameMode::StartEnemyTurn()
 {
     CurrentTurnState = ETurnState::EnemyTurn;
-    
 
-    
-    FTimerHandle TimerHandle;
-    GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+    FTimerHandle ActionTimerHandle;
+    // 1. 턴 시작 후 1초 뒤에 적들이 행동을 시작합니다.
+    GetWorld()->GetTimerManager().SetTimer(ActionTimerHandle, [this]()
         {
             TArray<AActor*> FoundEnemies;
             UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
 
-            // 모든 적이 일제히 플레이어를 향해 행동(공격/방어)을 실행합니다.
             for (AActor* Actor : FoundEnemies)
             {
                 if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
@@ -125,16 +123,24 @@ void ASTSGameMode::StartEnemyTurn()
                     if (Enemy->ActorHasTag(FName("CurrentBattle")))
                     {
                         Enemy->CurrentBlock = 0;
-                        Enemy->ExecuteIntent(this);
-
+                        Enemy->ExecuteIntent(this); // 적들이 달려나갑니다!
                     }
                 }
             }
 
-            TurnNumber++; // 턴 수 증가
-            StartPlayerTurn(); // 다시 플레이어 턴으로! (루프)
+            // 🚨 원래 여기 있던 StartPlayerTurn()을 지웁니다! 🚨
 
-        }, 2.0f, false);
+        }, 1.0f, false);
+
+    // 2. 넉넉하게 3~4초 뒤에 (적들이 때리고 복귀할 시간) 플레이어 턴으로 넘깁니다.
+    // (나중에는 적이 '나 제자리 도착했어!'라고 알려주게 만들면 완벽해집니다)
+    FTimerHandle TurnEndTimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(TurnEndTimerHandle, [this]()
+        {
+            TurnNumber++;
+            StartPlayerTurn();
+
+        }, 4.0f, false);
 
 
 }
