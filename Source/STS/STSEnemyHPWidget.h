@@ -15,6 +15,7 @@ class STS_API USTSEnemyHPWidget : public UUserWidget
 
 public:
 	// 체력바 업데이트 함수
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	void UpdateHP(float CurrentHP, float MaxHP);
 
 	//적의 의도 텍스트 업데이트 함수
@@ -27,6 +28,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* HPText;
 
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* IntentText;
+	//UPROPERTY(meta = (BindWidget))
+	//UTextBlock* IntentText;
 };

@@ -140,6 +140,15 @@ void ASTSCharacter::PlayAttackAnim()
 	}
 }
 
+void ASTSCharacter::PlayHitReactAnim()
+{
+	// 몽타주가 세팅되어 있다면 재생해라!
+	if (AttackMontage)
+	{
+		PlayAnimMontage(HitReactMontage);
+	}
+}
+
 void ASTSCharacter::ExecuteHit()
 {
 	if (CurrentTarget && PendingDamage > 0)

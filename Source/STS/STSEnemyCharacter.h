@@ -7,6 +7,15 @@
 
 class ASTSGameMode;
 
+UENUM(BlueprintType)
+enum class EIntentType : uint8
+{
+	Attack  UMETA(DisplayName = "공격"),
+	Defend  UMETA(DisplayName = "방어"),
+	Debuff  UMETA(DisplayName = "약화"),
+	Buff  UMETA(DisplayName = "강화")
+};
+
 UCLASS()
 class STS_API ASTSEnemyCharacter : public ACharacter
 {
@@ -86,6 +95,27 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ExecuteHit();
+
+	// 몬스터 머리 위에 UI를 띄워줄 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	class UWidgetComponent* IntentWidgetComp;
+
+	//C++에서 호출하면 블루프린트에서 실행
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void UpdateIntentUI(EIntentType IntentType, int32 IntentValue);
+
+	
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+    void UpdateHPUI(float CurrentHP, float MaxHP);
+
+	// 블루프린트에서 만든 타격 효과(플로팅 데미지, 흔들림)를 실행하는 수신기
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void PlayHitImpact(int32 Damage);
+
+	//방어도가 변할 때 UI에 업데이트를 요청하는 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void UpdateBlockUI(int32 NewBlock);
 protected:
 	
 

@@ -18,6 +18,18 @@ ASTSEnemyCharacter::ASTSEnemyCharacter()
 	
 	HPWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
 	HPWidgetComp->SetDrawSize(FVector2D(150.0f, 50.0f));
+
+	// 위젯 컴포넌트 생성
+	IntentWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("IntentWidgetComp"));
+	IntentWidgetComp->SetupAttachment(RootComponent); // 몬스터 몸통에 부착
+
+	// 3D 월드가 아닌 플레이어의 2D 모니터 화면에 딱 붙어서 보이게 설정
+	IntentWidgetComp->SetWidgetSpace(EWidgetSpace::Screen);
+
+	// 몬스터 정수리 위쪽으로 위치 살짝 올리기
+	IntentWidgetComp->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
+
+
 }
 
 void ASTSEnemyCharacter::BeginPlay()
@@ -28,10 +40,12 @@ void ASTSEnemyCharacter::BeginPlay()
 	CurrentHealth = MaxHealth;
 
 	// 게임 시작 시 HP바 초기화
-	if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
+	/**if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
 	{
 		HPWidget->UpdateHP(CurrentHealth, MaxHealth);
-	}
+	}*/
+	UpdateHPUI(CurrentHealth, MaxHealth);
+	//UpdateIntentUI(EIntentType::Attack, 15);
 }
 
 // 누군가 나를 때리면(ApplyDamage) 이 함수가 자동으로 실행됩니다.
@@ -68,16 +82,21 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	{
 		// 방어도(Block) 연산 시작 
 		// float형 데미지를 int32로 변환 (STS는 주로 정수 데미지를 사용하므로 반올림)
+
+		// 블루프린트로 데미지 수치를 보내며 효과(숫자 띄우기, 흔들림) 실행
+		PlayHitImpact(FMath::RoundToInt(ActualDamage));
 		int32 DamageToHealth = FMath::RoundToInt(ActualDamage);
 
 		if (CurrentBlock > 0)
 		{
+
+
 			if (CurrentBlock >= DamageToHealth)
 			{
 				// 케이스 A: 방어도가 데미지보다 높거나 같아서 전부 막아냄
 				CurrentBlock -= DamageToHealth;
 				DamageToHealth = 0; // 체력에 들어갈 데미지 소멸
-
+				UpdateBlockUI(CurrentBlock);
 				UE_LOG(LogTemp, Warning, TEXT("[방어 성공] 데미지를 모두 막아냈습니다! 남은 방어도: %d"), CurrentBlock);
 			}
 			else
@@ -102,10 +121,11 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 			if (CurrentHealth < 0.0f) CurrentHealth = 0.0f;
 
 			// 위젯 업데이트 호출!
-			if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
+			/**if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
 			{
 				HPWidget->UpdateHP(CurrentHealth, MaxHealth);
-			}
+			}*/
+			UpdateHPUI(CurrentHealth, MaxHealth);
 
 			// 애니메이션 재생과 동시에 사운드 재생
 			if (HitSoundAsset) 
@@ -140,7 +160,6 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 void ASTSEnemyCharacter::DecideNextIntent()
 {
-	
 	int32 RandomChoice = 0;
 
 	// 보스일 경우 5개의 패턴을 뽑음.
@@ -154,57 +173,46 @@ void ASTSEnemyCharacter::DecideNextIntent()
 		RandomChoice = FMath::RandRange(0, 2);
 	}
 
-	USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject());
 	CurrentHitCount = 1; // 매 턴마다 기본 타수를 1로 초기화 (중요!)
+
+	// UI에 쏴줄 'Enum 타입'을 저장할 임시 변수
+	EIntentType UIIntentType = EIntentType::Attack;
 
 	if (RandomChoice == 0)
 	{
 		CurrentIntentType = TEXT("Attack");
-		CurrentIntentValue = FMath::RandRange(5, 12); // 5~12 사이의 랜덤 데미지
-
-		if (HPWidget)
-		{
-			HPWidget->UpdateIntentText(FString::Printf(TEXT("공%d"), CurrentIntentValue));
-		}
+		CurrentIntentValue = FMath::RandRange(5, 12);
+		UIIntentType = EIntentType::Attack; // 공격 아이콘
 	}
 	else if (RandomChoice == 1)
 	{
 		CurrentIntentType = TEXT("Defend");
-		CurrentIntentValue = FMath::RandRange(4, 8); // 4~8 사이의 랜덤 방어도
-
-		if (HPWidget)
-		{
-			HPWidget->UpdateIntentText(FString::Printf(TEXT("방%d"), CurrentIntentValue));
-		}
+		CurrentIntentValue = FMath::RandRange(4, 8);
+		UIIntentType = EIntentType::Defend; // 방어 아이콘
 	}
 	else if (RandomChoice == 2)
 	{
 		CurrentIntentType = TEXT("Debuff");
-		CurrentIntentValue = 2; // 플레이어에게 줄 약화 스택 (예: 2스택)
-
-		if (HPWidget)
-		{
-			// 머리 위에 "약화2" 라고 띄워줍니다
-			HPWidget->UpdateIntentText(FString::Printf(TEXT("약화%d"), CurrentIntentValue));
-		}
+		CurrentIntentValue = 2;
+		UIIntentType = EIntentType::Debuff; // 약화 아이콘 
 	}
 	else if (RandomChoice == 3)
 	{
-		// 보스 추가 패턴 A: 힘 증가
 		CurrentIntentType = TEXT("BuffStrength");
-		CurrentIntentValue = 2; // 한 번에 오르는 힘 수치
-		if (HPWidget) HPWidget->UpdateIntentText(FString::Printf(TEXT("힘+%d"), CurrentIntentValue));
+		CurrentIntentValue = 2;
+		
+		UIIntentType = EIntentType::Buff;
 	}
 	else if (RandomChoice == 4)
 	{
-		// 보스 추가 패턴 B: 연속 타격
 		CurrentIntentType = TEXT("MultiHit");
 		CurrentIntentValue = 4; // 1타당 기본 데미지
 		CurrentHitCount = 3;    // 3번 연속으로 때림
-
-		// UI 표시: "연타 6x3" (기본데미지+힘 x 타수) 형태로 띄워줍니다.
-		if (HPWidget) HPWidget->UpdateIntentText(FString::Printf(TEXT("연타 %dx%d"), CurrentIntentValue + CurrentStrength, CurrentHitCount));
+		UIIntentType = EIntentType::Attack; // 연타도 일단 공격 아이콘을 띄움
 	}
+
+	// UI 업데이트 이벤트 호출 
+	UpdateIntentUI(UIIntentType, CurrentIntentValue);
 }
 
 void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)

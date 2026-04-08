@@ -2,10 +2,12 @@
 
 #include "STSGameMode.h"
 #include "STSUserWidget.h"
+#include "STSCharacter.h"
 #include "Components/CanvasPanel.h"
 #include "Components/Widget.h"
 #include "CardDataStruct.h"
 #include "STSEnemyCharacter.h"
+#include "Particles/ParticleSystem.h"
 #include "Kismet/GameplayStatics.h"
 
 ASTSGameMode::ASTSGameMode()
@@ -110,7 +112,7 @@ void ASTSGameMode::StartEnemyTurn()
     CurrentTurnState = ETurnState::EnemyTurn;
 
     FTimerHandle ActionTimerHandle;
-    // 1. 턴 시작 후 1초 뒤에 적들이 행동을 시작합니다.
+    // 턴 시작 후 적들이 행동을 시작합니다.
     GetWorld()->GetTimerManager().SetTimer(ActionTimerHandle, [this]()
         {
             TArray<AActor*> FoundEnemies;
@@ -123,17 +125,17 @@ void ASTSGameMode::StartEnemyTurn()
                     if (Enemy->ActorHasTag(FName("CurrentBattle")))
                     {
                         Enemy->CurrentBlock = 0;
-                        Enemy->ExecuteIntent(this); // 적들이 달려나갑니다!
+                        Enemy->ExecuteIntent(this); 
                     }
                 }
             }
 
-            // 🚨 원래 여기 있던 StartPlayerTurn()을 지웁니다! 🚨
+           
 
         }, 1.0f, false);
 
-    // 2. 넉넉하게 3~4초 뒤에 (적들이 때리고 복귀할 시간) 플레이어 턴으로 넘깁니다.
-    // (나중에는 적이 '나 제자리 도착했어!'라고 알려주게 만들면 완벽해집니다)
+    // 넉넉하게 3~4초 뒤에  플레이어 턴으로 넘깁니다.
+    
     FTimerHandle TurnEndTimerHandle;
     GetWorld()->GetTimerManager().SetTimer(TurnEndTimerHandle, [this]()
         {
@@ -287,11 +289,29 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
             //UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
             
         }
+		//피격 애니메이션 재생 
+        if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+        {
+            if (PlayerChar->HitReactMontage) 
+            {
+                PlayerChar->PlayAnimMontage(PlayerChar->HitReactMontage); 
+            }
+            if (PlayerChar->HitEffect)
+            {
+                // 이펙트를 내 몸통 위치(GetActorLocation)에서 펑 터뜨립니다!
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PlayerChar->HitEffect, PlayerChar->GetActorLocation());
+            }
+        }
+
+        
+
         //ui 갱신
         if (MainUIWidget)
         {
             MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
         }
+
+        
         // 사망 처리
         if (CurrentHealth <= 0)
         {

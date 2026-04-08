@@ -74,9 +74,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	UAnimMontage* AttackMontage;
 
+	// 에디터에서 피격 몽타주를 넣을 칸
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
+	UAnimMontage* HitReactMontage;
+
 	// UI가 호출해 줄 공격 애니메이션 재생 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void PlayAttackAnim();
+
+	// UI가 호출해 줄 피격 애니메이션 재생 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void PlayHitReactAnim();
+	// 피격 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
+	UParticleSystem* HitEffect;
+	
 
 	// C++가 호출하면, 실제 이동과 애니메이션은 블루프린트에서 처리
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")

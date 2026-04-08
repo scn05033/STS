@@ -17,8 +17,8 @@ void USTSEnemyHPWidget::UpdateHP(float CurrentHP, float MaxHP)
 
 void USTSEnemyHPWidget::UpdateIntentText(FString NewIntentText)
 {
-	if (IntentText)
+	/**if (IntentText)
 	{
 		IntentText->SetText(FText::FromString(NewIntentText));
-	}
+	}*/
 }
