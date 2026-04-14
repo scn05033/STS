@@ -8,6 +8,7 @@
 #include "CardDataStruct.h"
 #include "STSEnemyCharacter.h"
 #include "Particles/ParticleSystem.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
 ASTSGameMode::ASTSGameMode()
@@ -193,9 +194,9 @@ void ASTSGameMode::InitializeDeck()
             // MasterDeck.Add(FName("Cleave"));
 
 
-            MasterDeck.Add(FName("INFLAME"));
-            MasterDeck.Add(FName("TWIN_STRIKE"));
-            MasterDeck.Add(FName("SEEING_RED"));
+            //MasterDeck.Add(FName("INFLAME"));
+            //MasterDeck.Add(FName("TWIN_STRIKE"));
+            //MasterDeck.Add(FName("SEEING_RED"));
         }
         UE_LOG(LogTemp, Warning, TEXT("마스터 덱 최초 생성 완료! 내 전 재산: %d장"), MasterDeck.Num());
     }
@@ -275,6 +276,7 @@ void ASTSGameMode::TakePlayerDamage(int32 Damage)
             UE_LOG(LogTemp, Warning, TEXT("방어도가 파괴되고, %d의 피해가 관통했습니다!"), ActualDamage);
             CurrentBlock = 0;
         }
+        
     }
 
     // 남은 데미지를 체력에서 깎기
@@ -452,10 +454,16 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
 
     
 
+    FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
+
     if (CurrentFloor == BossFloor)
     {
         TargetEnemyClass = BossClassToSpawn;
-        UE_LOG(LogTemp, Error, TEXT("보스 등장! 최종 전투 준비!"));
+
+        
+        SpawnLocation = FVector(-2390.0f, 4540.0f, 200.0f);
+
+        UE_LOG(LogTemp, Error, TEXT("보스 등장!"));
     }
 
     //  적 소환! 
@@ -463,10 +471,19 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
     {
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
-        FRotator SpawnRotation(0.0f, 180.0f, 0.0f);
+        //FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
+        //FRotator SpawnRotation(0.0f, -180.0f, 0.0f);
 
+        APawn* PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+        FRotator SpawnRotation = FRotator::ZeroRotator;
 
+        if (PlayerPawn)
+        {
+            FVector PlayerLocation = PlayerPawn->GetActorLocation();
+
+            
+            SpawnRotation = UKismetMathLibrary::FindLookAtRotation(SpawnLocation, PlayerLocation);
+        }
         AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(TargetEnemyClass, SpawnLocation, SpawnRotation, SpawnParams);
         if (NewEnemy)
         {

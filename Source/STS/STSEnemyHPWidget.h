@@ -28,6 +28,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* HPText;
 
+	
+
+
 	//UPROPERTY(meta = (BindWidget))
 	//UTextBlock* IntentText;
 };

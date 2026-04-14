@@ -107,7 +107,7 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 				CurrentBlock = 0; // 방어도는 완전히 박살남
 			}
-
+			UpdateBlockUI(CurrentBlock);
 			// 위젯에 깎인 방어도 업데이트 (TODO: HPWidget에 함수 추가 필요)
 			// if (HPWidget) HPWidget->UpdateBlock(CurrentBlock);
 		}
@@ -142,15 +142,8 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 			if (CurrentHealth <= 0.0f)
 			{
 				UE_LOG(LogTemp, Error, TEXT("%s 사망! (Die)"), *GetName());
-
-				// 승리 확인 요청
-				ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-				if (GM)
-				{
-					GM->CheckVictory();
-				}
-
-				Destroy();
+				Die();
+				
 			}
 		}
 	}
@@ -240,6 +233,7 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	{
 		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		AddBlock(CurrentIntentValue);
+		UpdateBlockUI(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Debuff"))
 	{
@@ -310,4 +304,47 @@ void ASTSEnemyCharacter::ExecuteHit()
 			PendingDamage = 0;
 		}
 	}
+}
+
+void ASTSEnemyCharacter::Die()
+{
+	UE_LOG(LogTemp, Warning, TEXT("%s 사망! 쓰러지는 연출 시작"), *GetName());
+
+	// 충돌 판정 끄기 (플레이어가 죽은 시체를 타겟팅하거나 때리지 못하게 함)
+	SetActorEnableCollision(false);
+
+	// 머리 위 체력바 UI 숨기기 
+	if (HPWidgetComp)
+	{
+		HPWidgetComp->SetVisibility(false);
+	}
+
+	Tags.Remove(FName("CurrentBattle"));
+	Tags.Remove(FName("Enemy"));
+
+	// 블루프린트에 애니메이션 명령
+	PlayDeathVisuals();
+
+	
+	GetWorld()->GetTimerManager().SetTimer(
+		DeathTimerHandle,
+		this,
+		&ASTSEnemyCharacter::DelayedVictoryCheck,
+		DeathDelay,
+		false
+	);
+
+}
+
+void ASTSEnemyCharacter::DelayedVictoryCheck()
+{
+	// 타이머가 끝나면 실행되는 실제 게임 종료 로직
+	ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	if (GM)
+	{
+		GM->CheckVictory();
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("%s 시체 소멸!"), *GetName());
+	Destroy();
 }

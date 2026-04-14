@@ -26,7 +26,12 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	// 알람 시계 역할을 할 핸들
+	FTimerHandle DeathTimerHandle;
 
+	// 실제 승리 체크를 수행할 함수 
+	UFUNCTION()
+	void DelayedVictoryCheck();
 public:
 	// 언리얼이 제공하는 데미지 받는 함수 (Override)
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
@@ -116,6 +121,15 @@ public:
 	//방어도가 변할 때 UI에 업데이트를 요청하는 함수
 	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
 	void UpdateBlockUI(int32 NewBlock);
+
+	// 블루프린트에서 쓰러지는 애니메이션과 이펙트를 틀도록 지시하는 알람
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void PlayDeathVisuals();
+
+	// 블루프린트에서 수정 가능한 사망 대기 시간 변수! 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	float DeathDelay = 1.0f;
+
 protected:
 	
 
@@ -127,4 +141,7 @@ protected:
 
 	// 현재 결정된 수치 (데미지량 또는 방어도량)
 	int32 CurrentIntentValue;
+
+	// 사망 처리를 전담할 함수
+	void Die();
 };
