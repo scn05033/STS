@@ -130,6 +130,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	float DeathDelay = 1.0f;
 
+	// 타겟팅 시각 효과를 켜고 끄는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat|Visuals")
+	void SetTargetingHighlight(bool bIsTargeted);
+
 protected:
 	
 

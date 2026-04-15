@@ -57,6 +57,33 @@ protected:
 	virtual void NativeConstruct() override;
 	//드롭을 감지하는 함수
 	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	// 오버라이드할 NativePaint 함수 선언
+	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
+	// 블루프린트에서 조절할 수 있도록 변수 선언
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Targeting Line")
+	FLinearColor LineColor = FLinearColor::Red; // 선 색상
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Targeting Line")
+	float LineThickness = 5.0f; // 선 두께
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Targeting Line")
+	float ArrowHeadSize = 30.0f; // 화살표 머리 크기
+
+	// 적중 여부와 상관없이 '현재 공격 카드를 쥐고 있는지'를 판단할 변수
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsTargeting = false;
+
+	// 카드를 화면 밖으로 놓쳤을 때를 대비한 함수
+	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	// UI에서 선을 그릴 때 사용할 마우스/타겟 좌표 변수들
+	UPROPERTY(BlueprintReadOnly)
+	FVector2D CurrentDragScreenPos;
+
+	//UPROPERTY(BlueprintReadOnly)
+	//AActor* CurrentHoveredEnemy;
 public:
 	UFUNCTION(BlueprintCallable)
 	void AddCards(int32 NewCards);
@@ -76,6 +103,12 @@ public:
 	// 드래그 중일 때 매 프레임 실행되는 함수
 	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
+	// UI에서 선을 그릴 때 사용할 마우스/타겟 좌표 변수들
+	//UPROPERTY(BlueprintReadOnly)
+	//FVector2D CurrentDragScreenPos;
+
+	UPROPERTY(BlueprintReadOnly)
+	class ASTSEnemyCharacter* CurrentHoveredEnemy;
 	void ShowVictory();
 
 	// UI 패널 연결
@@ -118,4 +151,9 @@ public:
 	// 전투 종료를 알리는 함수
 	UFUNCTION(BlueprintImplementableEvent, Category = "State")
 	void OnCombatEnded();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	AActor* GetEnemyUnderCursor(FVector2D ScreenPos);
+
+
 };

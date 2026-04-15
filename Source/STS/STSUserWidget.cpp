@@ -10,12 +10,14 @@
 #include "Components/TextBlock.h"
 #include "STSCardWidget.h"
 #include "STSGameMode.h"
+#include "Blueprint/SlateBlueprintLibrary.h"
 #include "STSEnemyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "CardDataStruct.h"
 #include "Components/ProgressBar.h"
 #include "DrawDebugHelpers.h"
 #include "STSCharacter.h"
+#include "Rendering/DrawElements.h"
 #include "GameFramework/PlayerController.h" 
 #include "Engine/World.h"
 
@@ -211,6 +213,11 @@ void USTSUserWidget::ShowGameOver()
 bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
     Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+    APlayerController* PC = GetOwningPlayer();
+    // 화살표 선 긋기 끄기
+    bIsTargeting = false;
+
+    UE_LOG(LogTemp, Warning, TEXT("==== [디버그] NativeOnDrop 이 실행되었습니다! ===="));
 
     USTSCardWidget* DroppedCard = Cast<USTSCardWidget>(InOperation->Payload);
     if (!DroppedCard) return false;
@@ -219,7 +226,6 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
     if (!GM) return false;
 
-    APlayerController* PC = GetOwningPlayer();
     AActor* TargetEnemy = nullptr;
 
     // 공격 카드일 경우: 타겟팅 검사
@@ -227,35 +233,30 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     {
         if (CardData.bIsAoE)
         {
-            // 광역기면 레이저 검사 없이 프리패스!
             UE_LOG(LogTemp, Warning, TEXT("광역 공격 카드 발동 준비!"));
         }
         else
         {
-            // 단일 공격기면 기존처럼 레이저로 적을 맞췄는지 깐깐하게 검사
-            FVector2D ScreenPos = InDragDropEvent.GetScreenSpacePosition();
-            FVector WorldLoc, WorldDir;
-            if (UGameplayStatics::DeprojectScreenToWorld(PC, ScreenPos, WorldLoc, WorldDir))
+            // 자석 타겟팅 핵심: 레이저를 쏠 필요 없이 DragOver에서 잡아둔 녀석을 그대로 씁니다!
+            if (CurrentHoveredEnemy)
             {
-                FVector End = WorldLoc + (WorldDir * 10000.0f);
-                FHitResult HitResult;
-
-                if (GetWorld()->LineTraceSingleByChannel(HitResult, WorldLoc, End, ECC_Visibility))
-                {
-                    if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag(FName("Enemy")))
-                    {
-                        TargetEnemy = HitResult.GetActor();
-                    }
-                }
+                TargetEnemy = CurrentHoveredEnemy; // 타겟 확정!
             }
-
-            if (!TargetEnemy)
+            else
             {
                 UE_LOG(LogTemp, Warning, TEXT("단일 공격 카드는 적을 타겟팅해야 합니다!"));
-                return false;
+                return false; // 허공에 놨으니 공격 취소
             }
         }
     }
+
+    // 타겟을 확정지었으니, 이제 안심하고 몬스터의 불을 끄고 변수를 초기화합니다.
+    if (CurrentHoveredEnemy)
+    {
+        CurrentHoveredEnemy->SetTargetingHighlight(false);
+        CurrentHoveredEnemy = nullptr;
+    }
+
 
     // 에너지 결제
     if (!GM->TryUseEnergy(CardData.Cost)) return false;
@@ -400,26 +401,77 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
 {
     Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
 
-    FVector WorldLocation, WorldDirection;
-    APlayerController* PC = GetOwningPlayer();
+    USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
+    // 마우스의 절대 좌표를 로컬 좌표로 변환합니다.
+    FVector2D MouseLocalPos = InGeometry.AbsoluteToLocal(CurrentDragScreenPos);
+    if (!DraggedCard) return true;
 
-    if (PC && PC->DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
+    FCardData CardData = DraggedCard->GetCardData();
+
+    if (CardData.Type == FName("Attack") && !CardData.bIsAoE)
     {
-        FVector Start = WorldLocation;
-        FVector End = Start + (WorldDirection * 10000.0f);
-        FHitResult HitResult;
+        bIsTargeting = true;
+        CurrentDragScreenPos = InDragDropEvent.GetScreenSpacePosition();
 
-        // 마우스 위치로 레이저를 쏴서 적이 있는지 확인
-        if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility))
+        ASTSEnemyCharacter* BestTarget = nullptr;
+        APlayerController* PC = GetOwningPlayer();
+
+        // 자석 반경 설정 (이 픽셀 반경 안에 들어와야 타겟팅 됨. 너무 크면 화면 끝에서도 타겟팅 됩니다)
+        float MinDistance = 400.0f;
+
+        if (PC)
         {
-            if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag("Enemy"))
+            // 모든 적을 가져옵니다. 
+            TArray<AActor*> FoundEnemies;
+            UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("Enemy"), FoundEnemies);
+
+            for (AActor* Actor : FoundEnemies)
             {
-                // 적 위에 마우스가 있으면, 적의 위치에 빨간색 구체를 0.1초 동안 그림! (조준점 역할)
-                DrawDebugSphere(GetWorld(), HitResult.Location, 40.0f, 16, FColor::Red, false, 0.1f, 0, 3.0f);
+                ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor);
+                if (Enemy && Enemy->CurrentHealth > 0) // 살아있는 적만 검사
+                {
+                    FVector2D EnemyScreenPos;
+                    // 적의 3D 위치를 2D 화면(모니터) 좌표로 변환합니다
+                    // (발끝이 아닌 가슴/머리 쪽을 타겟팅하도록 Z축으로 +100 정도 올려주면 좋습니다)
+                    FVector TargetLocation = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+
+                    if (PC->ProjectWorldLocationToScreen(TargetLocation, EnemyScreenPos))
+                    {
+                        //몬스터의 창 기준 픽셀 좌표를 UI 로컬 좌표로 변환합니다
+                        FVector2D EnemyLocalPos;
+                        USlateBlueprintLibrary::ScreenToWidgetLocal(this, InGeometry, EnemyScreenPos, EnemyLocalPos);
+
+                        // 둘 다 로컬 좌표로 통일되었으니, 이제 거리가 100% 정확하게 계산됩니다.
+                        float Dist = FVector2D::Distance(MouseLocalPos, EnemyLocalPos);
+                        if (Dist < MinDistance)
+                        {
+                            MinDistance = Dist;
+                            BestTarget = Enemy;
+                        }
+                    }
+                }
             }
         }
+
+        // 기존 하이라이트 교체 로직 (HoveredEnemy 대신 BestTarget 사용)
+        if (CurrentHoveredEnemy != BestTarget)
+        {
+            if (CurrentHoveredEnemy) CurrentHoveredEnemy->SetTargetingHighlight(false);
+            CurrentHoveredEnemy = BestTarget;
+            if (CurrentHoveredEnemy) CurrentHoveredEnemy->SetTargetingHighlight(true);
+        }
     }
-    return true; // 드래그 이벤트 정상 처리
+    else
+    {
+        bIsTargeting = false;
+        if (CurrentHoveredEnemy)
+        {
+            CurrentHoveredEnemy->SetTargetingHighlight(false);
+            CurrentHoveredEnemy = nullptr;
+        }
+    }
+
+    return true;
 }
 
 void USTSUserWidget::ClearHandUI()
@@ -496,4 +548,127 @@ void USTSUserWidget::ShowGameClear()
     OnCombatEnded();
 }
 
+AActor* USTSUserWidget::GetEnemyUnderCursor(FVector2D ScreenPos)
+{
+    FVector WorldLoc, WorldDir;
+    APlayerController* PC = GetOwningPlayer();
 
+    if (PC && UGameplayStatics::DeprojectScreenToWorld(PC, ScreenPos, WorldLoc, WorldDir))
+    {
+        FVector End = WorldLoc + (WorldDir * 10000.0f);
+        FHitResult HitResult;
+
+        if (GetWorld()->LineTraceSingleByChannel(HitResult, WorldLoc, End, ECC_Visibility))
+        {
+            if (HitResult.GetActor() && HitResult.GetActor()->ActorHasTag(FName("Enemy")))
+            {
+                return HitResult.GetActor(); // 적을 찾으면 반환
+            }
+        }
+    }
+    return nullptr; // 못 찾으면 널 반환
+}
+
+int32 USTSUserWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+    // 부모 함수의 기본 Paint 로직을 먼저 실행합니다.
+    int32 NextLayerId = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+
+    if (bIsTargeting)
+    {
+        // 시작점과 끝점
+        FVector2D StartPoint = FVector2D(AllottedGeometry.GetLocalSize().X * 0.5f, AllottedGeometry.GetLocalSize().Y * 0.9f);
+       // FVector2D EndPoint = AllottedGeometry.AbsoluteToLocal(CurrentDragScreenPos);
+        FVector2D EndPoint;
+
+        //  자석 타겟팅 시각화: 누구를 따라갈 것인가?
+        if (CurrentHoveredEnemy)
+        {
+            // 타겟팅된 적이 있다면? -> 화살표 끝을 몬스터의 몸통에 강제로 고정
+            FVector2D EnemyScreenPos;
+
+            // 몬스터의 발끝이 아닌 가슴팍 쪽에 꽂히도록 Z축으로 100만큼 올려줍니다.
+            FVector TargetLocation = CurrentHoveredEnemy->GetActorLocation() + FVector(0.0f, 0.0f, 0.0f);
+
+            if (GetOwningPlayer() && GetOwningPlayer()->ProjectWorldLocationToScreen(TargetLocation, EnemyScreenPos))
+            {
+                // 몬스터의 화면 2D 좌표를 도화지 로컬 좌표로 변환
+               //EndPoint = AllottedGeometry.AbsoluteToLocal(EnemyScreenPos);
+                USlateBlueprintLibrary::ScreenToWidgetLocal((UObject*)this, AllottedGeometry, EnemyScreenPos, EndPoint);
+            }
+        }
+        else
+        {
+            // 타겟팅된 적이 없다면? -> 평소처럼 마우스 커서를 따라갑니다.
+            EndPoint = AllottedGeometry.AbsoluteToLocal(CurrentDragScreenPos);
+        }
+
+        // STS 스타일의 베지어 곡선(Bezier Curve) 계산
+        TArray<FVector2D> Points;
+
+
+        // 슬레이 더 스파이어 스타일의 컨트롤 포인트
+        // ControlPoint1: 시작점(카드)에서 일단 하늘 위로 아주 높게(-800) 솟구치게 합니다.
+        FVector2D ControlPoint1 = StartPoint + FVector2D(0.0f, -800.0f);
+
+        // ControlPoint2: 도착점(적)의 바로 위 하늘(-800)에서 수직으로 내리꽂히게 합니다.
+        FVector2D ControlPoint2 = EndPoint + FVector2D(0.0f, -800.0f);
+
+        // 곡선을 30개의 짧은 직선으로 쪼개서 아주 부드럽게 만들기
+        int32 Segments = 30;
+        for (int32 i = 0; i <= Segments; i++)
+        {
+            float t = (float)i / Segments;
+            float u = 1.0f - t;
+
+            // 3차 베지어 곡선 공식
+            FVector2D Point = (u * u * u) * StartPoint +
+                3 * (u * u) * t * ControlPoint1 +
+                3 * u * (t * t) * ControlPoint2 +
+                (t * t * t) * EndPoint;
+
+            Points.Add(Point);
+        }
+
+        // 선 그리기
+        FSlateDrawElement::MakeLines(
+            OutDrawElements, NextLayerId + 100, AllottedGeometry.ToPaintGeometry(),
+            Points, ESlateDrawEffect::None, LineColor, true, LineThickness
+        );
+
+        // 화살표 머리 그리기 (곡선의 마지막 각도를 따라감)
+        FVector2D Dir = (EndPoint - Points[Points.Num() - 2]).GetSafeNormal();
+        FVector2D RightDir = FVector2D(-Dir.Y, Dir.X);
+
+        TArray<FVector2D> ArrowPoints;
+        ArrowPoints.Add(EndPoint);
+        ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) + (RightDir * ArrowHeadSize * 0.5f));
+        ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) - (RightDir * ArrowHeadSize * 0.5f));
+        ArrowPoints.Add(EndPoint);
+
+        FSlateDrawElement::MakeLines(
+            OutDrawElements, NextLayerId + 100, AllottedGeometry.ToPaintGeometry(),
+            ArrowPoints, ESlateDrawEffect::None, LineColor, true, LineThickness
+        );
+
+    }
+   
+
+    // 다음 레이어 ID를 반환합니다.
+    return NextLayerId;
+}
+
+// 드래그 리브: 마우스가 위젯 밖으로 나가면 OFF
+void USTSUserWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    // 타겟팅 중이던 몬스터의 불을 끄고 초기화
+    if (CurrentHoveredEnemy)
+    {
+        CurrentHoveredEnemy->SetTargetingHighlight(false);
+        CurrentHoveredEnemy = nullptr;
+    }
+
+    Super::NativeOnDragLeave(InDragDropEvent, InOperation);
+    bIsTargeting = false;
+    CurrentHoveredEnemy = nullptr;
+}

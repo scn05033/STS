@@ -348,3 +348,15 @@ void ASTSEnemyCharacter::DelayedVictoryCheck()
 	UE_LOG(LogTemp, Warning, TEXT("%s 시체 소멸!"), *GetName());
 	Destroy();
 }
+
+void ASTSEnemyCharacter::SetTargetingHighlight(bool bIsTargeted)
+{
+	if (GetMesh())
+	{
+		// 언리얼 엔진의 기본 외곽선 그리기 기능 (Custom Depth)을 켜고 끕니다.
+		GetMesh()->SetRenderCustomDepth(bIsTargeted);
+
+		// (선택) 만약 발밑에 빨간색 타겟팅 마크(Decal)나 파티클을 띄우고 싶다면 여기서 켜고 끕니다
+		// if (TargetingParticle) TargetingParticle->SetVisibility(bIsTargeted);
+	}
+}
