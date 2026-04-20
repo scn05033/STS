@@ -44,15 +44,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
     int32 MaxEnergy = 3;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Stats")
-    int32 CurrentBlock = 0;
-
-    // 플레이어 체력
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-    int32 CurrentHealth = 50;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-    int32 MaxHealth = 50;
+  
 
     // 현재 힘 수치 (블루프린트 UI에서도 읽을 수 있게 권한 부여)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
@@ -62,12 +54,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Stats")
     void AddStrength(int32 Amount);
 
-    // 플레이어가 데미지를 받는 함수 (방어도를 먼저 깎는 로직 포함)
-    void TakePlayerDamage(int32 Damage);
+ 
 
     // 행동 함수들
     bool TryUseEnergy(int32 Amount); // 에너지 사용 (부족하면 false)
-    void AddBlock(int32 Amount);     // 방어도 획득
+    
 
     // 덱 초기화 및 셔플 함수
     void InitializeDeck();
@@ -91,10 +82,7 @@ public:
     // 턴 시작 시 디버프를 줄여주는 함수
     void DecreasePlayerStatusEffects();
 
-    // 승리 후 다음 방으로 넘어가는 함수
-   // UFUNCTION(BlueprintCallable, Category = "Combat")
-   // void StartNextStage();
-
+  
     // 다음 방에서 스폰할 적의 블루프린트 클래스 (언리얼 에디터에서 지정할 수 있게 만듭니다)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     TSubclassOf<class ASTSEnemyCharacter> EnemyClassToSpawn;
@@ -178,11 +166,7 @@ protected:
 	USTSUserWidget* MainUIWidget;
 
 
-    // 에디터에서 기본 폰 클래스를 설정할 수 있도록 노출합니다.
-   // UPROPERTY(EditDefaultsOnly, Category = "Game Settings")
-//    TSubclassOf<APawn> CustomDefaultPawnClass;
-
-   // virtual void BeginPlay() override;
+  
    
 
    

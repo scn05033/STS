@@ -28,7 +28,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* EnergyText;
 
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(meta = (BindWidget), BlueprintReadOnly, Category = "UI")
 	UTextBlock* BlockText;
 	// 카드 위젯 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "STS")
@@ -41,10 +41,10 @@ protected:
 
 	// UI 에디터의 체력바와 텍스트
 	UPROPERTY(meta = (BindWidget))
-	UProgressBar* PlayerHPBar;
+	UProgressBar* HPBar;
 
 	UPROPERTY(meta = (BindWidget))
-	UTextBlock* PlayerHPText;
+	UTextBlock* HPText;
 
 	// 게임 오버 패널 
 	UPROPERTY(meta = (BindWidget))

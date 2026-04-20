@@ -178,19 +178,19 @@ void USTSUserWidget::UpdateBlockText(int32 CurrentBlock)
 void USTSUserWidget::UpdatePlayerHP(int32 CurrentHP, int32 MaxHP)
 {
     UE_LOG(LogTemp, Warning, TEXT("UI 체력 업데이트 요청됨! - 현재: %d / 최대: %d"), CurrentHP, MaxHP);
-    if (PlayerHPBar && MaxHP > 0)
+    if (HPBar && MaxHP > 0)
     {
         float Percent = (float)CurrentHP / (float)MaxHP;
-        PlayerHPBar->SetPercent(Percent);
+        HPBar->SetPercent(Percent);
     }
     else
     {
         UE_LOG(LogTemp, Error, TEXT("PlayerHPBar 위젯을 찾을 수 없습니다! (이름이나 변수 체크 확인)"));
     }
-    if (PlayerHPText)
+    if (HPText)
     {
         FString HPString = FString::Printf(TEXT("%d / %d"), CurrentHP, MaxHP);
-        PlayerHPText->SetText(FText::FromString(HPString));
+        HPText->SetText(FText::FromString(HPString));
     }
     else
     {
@@ -318,7 +318,12 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     // 수비 카드일 때
     else if (CardData.Type == FName("Defend"))
     {
-        GM->AddBlock(CardData.BaseBlock);
+        //게임모드 대신 플레이어 캐릭터를 가져옵니다.
+            if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+            {
+                PlayerChar->AddBlock(CardData.BaseBlock);
+            }
+
         UE_LOG(LogTemp, Warning, TEXT("방어도 증가: %d"), CardData.BaseBlock);
         if (CardData.DrawAmount > 0)
         {

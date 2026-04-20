@@ -14,6 +14,9 @@ class UInputAction;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerBlockChanged, int32, NewBlock);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerHealthChanged, int32, NewHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDeath);
 
 UCLASS(config=Game)
 class ASTSCharacter : public ACharacter
@@ -102,6 +105,33 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ExecuteHit();
 	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	int32 CurrentHealth = 50;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	int32 MaxHealth = 50;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	int32 CurrentBlock = 0;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnPlayerBlockChanged OnBlockChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnPlayerHealthChanged OnHealthChanged;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnPlayerDeath OnPlayerDeath;
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void AddBlock(int32 Amount);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void TakePlayerDamage(int32 Damage);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void HealPlayer(int32 HealAmount);
+
 
 };
 

@@ -1,5 +1,6 @@
 ﻿#include "STSEnemyCharacter.h"
 #include "STSEnemyHPWidget.h"
+#include "STSCharacter.h"
 #include "STSGameMode.h"
 #include "Sound/SoundBase.h"
 #include "Kismet/GameplayStatics.h"
@@ -231,9 +232,9 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	}
 	else if (CurrentIntentType == TEXT("Defend"))
 	{
-		UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
+		//UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		AddBlock(CurrentIntentValue);
-		UpdateBlockUI(CurrentIntentValue);
+		//UpdateBlockUI(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Debuff"))
 	{
@@ -257,10 +258,12 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 1타당 데미지 계산
 		UE_LOG(LogTemp, Warning, TEXT(" [보스 패턴] 보스가 %d의 데미지로 %d번 연속 공격합니다!"), FinalDamage, CurrentHitCount);
 
-		// For 루프를 돌려서 플레이어에게 데미지를 입힘.
-		for (int i = 0; i < CurrentHitCount; i++)
+		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
 		{
-			GM->TakePlayerDamage(FinalDamage);
+			for (int i = 0; i < CurrentHitCount; i++)
+			{
+				PlayerChar->TakePlayerDamage(FinalDamage);
+			}
 		}
 	}
 }
@@ -281,6 +284,10 @@ void ASTSEnemyCharacter::AddBlock(int32 BlockAmount)
 
 	UE_LOG(LogTemp, Warning, TEXT("[전투] 적이 방어도를 %d 획득했습니다. (총 방어도: %d)"), BlockAmount, CurrentBlock);
 
+	// "내 방어도가 변했어!" UI에 알려줌
+	OnBlockChanged.Broadcast(CurrentBlock);
+
+
 	// UI 업데이트 
 	if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
 	{
@@ -293,12 +300,11 @@ void ASTSEnemyCharacter::ExecuteHit()
 {
 	if (PendingDamage > 0)
 	{
-		//GameMode를 불러옵니다.
-		ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(this));
-		if (GM)
+		// PlayerCharacter를 불러옵니다.
+		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
 		{
-			// GameMode의 함수를 호출합니다
-			GM->TakePlayerDamage(PendingDamage);
+			// 캐릭터의 함수를 호출하여 데미지를 줍니다.
+			PlayerChar->TakePlayerDamage(PendingDamage);
 
 			// 데미지 초기화
 			PendingDamage = 0;

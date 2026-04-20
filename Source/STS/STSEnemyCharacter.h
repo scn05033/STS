@@ -15,6 +15,7 @@ enum class EIntentType : uint8
 	Debuff  UMETA(DisplayName = "약화"),
 	Buff  UMETA(DisplayName = "강화")
 };
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyBlockChanged, int32, NewBlock);
 
 UCLASS()
 class STS_API ASTSEnemyCharacter : public ACharacter
@@ -33,6 +34,10 @@ protected:
 	UFUNCTION()
 	void DelayedVictoryCheck();
 public:
+	// 위젯이 연결할 수 있는 방어도 변경 이벤트 델리게이트
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnEnemyBlockChanged OnBlockChanged;
+
 	// 언리얼이 제공하는 데미지 받는 함수 (Override)
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 

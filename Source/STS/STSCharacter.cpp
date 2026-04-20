@@ -160,3 +160,87 @@ void ASTSCharacter::ExecuteHit()
 		UE_LOG(LogTemp, Warning, TEXT("노티파이 발생! 적에게 %d 데미지를 입혔습니다."), PendingDamage);
 	}
 }
+
+void ASTSCharacter::AddBlock(int32 Amount)
+{
+	CurrentBlock += Amount;
+	OnBlockChanged.Broadcast(CurrentBlock); // 방어도 UI 업데이트 방송
+}
+
+void ASTSCharacter::TakePlayerDamage(int32 Damage)
+{
+	int32 ActualDamage = Damage;
+
+	// 방어도가 있다면 먼저 깎기
+	if (CurrentBlock > 0)
+	{
+		if (CurrentBlock >= ActualDamage)
+		{
+			// 방어도가 충분해서 다 막음
+			CurrentBlock -= ActualDamage;
+			ActualDamage = 0;
+			UE_LOG(LogTemp, Warning, TEXT("방어도로 완벽히 막았습니다! (남은 방어도: %d)"), CurrentBlock);
+		}
+		else
+		{
+			// 방어도가 깨지고 데미지가 관통함
+			ActualDamage -= CurrentBlock;
+			UE_LOG(LogTemp, Warning, TEXT("방어도가 파괴되고, %d의 피해가 관통했습니다!"), ActualDamage);
+			CurrentBlock = 0;
+		}
+
+		// 방어도 UI 업데이트 방송
+		OnBlockChanged.Broadcast(CurrentBlock);
+	}
+
+	// 남은 데미지를 체력에서 깎기
+	if (ActualDamage > 0)
+	{
+		CurrentHealth -= ActualDamage;
+		UE_LOG(LogTemp, Error, TEXT("플레이어가 %d의 피해를 입었습니다! (남은 체력: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
+
+		if (CurrentHealth <= 0)
+		{
+			CurrentHealth = 0;
+			//UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
+
+		}
+		// 체력 UI 업데이트 방송
+		OnHealthChanged.Broadcast(CurrentHealth);
+		//피격 애니메이션 재생 
+		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+		{
+			if (PlayerChar->HitReactMontage)
+			{
+				PlayerChar->PlayAnimMontage(PlayerChar->HitReactMontage);
+			}
+			if (PlayerChar->HitEffect)
+			{
+				// 이펙트를 내 몸통 위치(GetActorLocation)에서 펑 터뜨립니다!
+				UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PlayerChar->HitEffect, PlayerChar->GetActorLocation());
+			}
+		}
+
+
+
+
+
+		// 사망 처리
+		if (CurrentHealth <= 0)
+		{
+			//UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
+			// 게임 오버 방송
+			OnPlayerDeath.Broadcast();
+		}
+	}
+}
+
+void ASTSCharacter::HealPlayer(int32 HealAmount)
+{
+	// 체력을 회복시키고, MaxHealth를 넘지 않게 잘라줍니다
+	CurrentHealth = FMath::Clamp(CurrentHealth + HealAmount, 0, MaxHealth);
+
+	// 체력 UI 업데이트 방송
+	OnHealthChanged.Broadcast(CurrentHealth);
+}
+	

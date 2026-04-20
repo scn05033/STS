@@ -46,7 +46,7 @@ void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
     // 전투 시작 시 플레이어 체력바 꽉 채워주기
     if (MainUIWidget)
     {
-        MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
+       // MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
     }
 
     InitializeDeck();
@@ -59,7 +59,7 @@ void ASTSGameMode::StartPlayerTurn()
     CurrentTurnState = ETurnState::PlayerTurn;
 
     CurrentEnergy = MaxEnergy;
-    CurrentBlock = 0;
+    //CurrentBlock = 0;
 
     // 내 턴이 시작될 때 디버프가 1 줄어듭니다
     DecreasePlayerStatusEffects();
@@ -70,7 +70,7 @@ void ASTSGameMode::StartPlayerTurn()
 
         // UI 수치 초기화 갱신
         MainUIWidget->UpdateEnergyText(CurrentEnergy, MaxEnergy);
-        MainUIWidget->UpdateBlockText(CurrentBlock);
+       // MainUIWidget->UpdateBlockText(CurrentBlock);
 	}
 
     TArray<AActor*> FoundEnemies;
@@ -165,16 +165,7 @@ bool ASTSGameMode::TryUseEnergy(int32 Cost)
     return false; // 에너지 부족
 }
 
-void ASTSGameMode::AddBlock(int32 Amount)
-{
-    CurrentBlock += Amount;
 
-    if (MainUIWidget)
-    {
-        MainUIWidget->UpdateBlockText(CurrentBlock);
-    }
-   // UE_LOG(LogTemp, Warning, TEXT(" 방어도 획득: %d (현재 총 방어도: %d)"), Amount, CurrentBlock);
-}
 
 void ASTSGameMode::InitializeDeck()
 {
@@ -185,7 +176,7 @@ void ASTSGameMode::InitializeDeck()
         for (int i = 0; i < 5; ++i)
         {
             MasterDeck.Add(FName("STRIKE_BASIC"));
-            // MasterDeck.Add(FName("DEFEND_BASIC")); 
+            MasterDeck.Add(FName("DEFEND_BASIC")); 
 
             //MasterDeck.Add(FName("SHRUG_IT_OFF"));
 
@@ -255,82 +246,7 @@ FName ASTSGameMode::DrawCard()
     return DrawPile.Pop();
 }
 
-void ASTSGameMode::TakePlayerDamage(int32 Damage)
-{
-    int32 ActualDamage = Damage;
 
-    // 방어도가 있다면 먼저 깎기
-    if (CurrentBlock > 0)
-    {
-        if (CurrentBlock >= ActualDamage)
-        {
-            // 방어도가 충분해서 다 막음
-            CurrentBlock -= ActualDamage;
-            ActualDamage = 0;
-            UE_LOG(LogTemp, Warning, TEXT("방어도로 완벽히 막았습니다! (남은 방어도: %d)"), CurrentBlock);
-        }
-        else
-        {
-            // 방어도가 깨지고 데미지가 관통함
-            ActualDamage -= CurrentBlock;
-            UE_LOG(LogTemp, Warning, TEXT("방어도가 파괴되고, %d의 피해가 관통했습니다!"), ActualDamage);
-            CurrentBlock = 0;
-        }
-        
-    }
-
-    // 남은 데미지를 체력에서 깎기
-    if (ActualDamage > 0)
-    {
-        CurrentHealth -= ActualDamage;
-        UE_LOG(LogTemp, Error, TEXT("플레이어가 %d의 피해를 입었습니다! (남은 체력: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
-
-        if (CurrentHealth <= 0)
-        {
-            CurrentHealth = 0;
-            //UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
-            
-        }
-		//피격 애니메이션 재생 
-        if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
-        {
-            if (PlayerChar->HitReactMontage) 
-            {
-                PlayerChar->PlayAnimMontage(PlayerChar->HitReactMontage); 
-            }
-            if (PlayerChar->HitEffect)
-            {
-                // 이펙트를 내 몸통 위치(GetActorLocation)에서 펑 터뜨립니다!
-                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PlayerChar->HitEffect, PlayerChar->GetActorLocation());
-            }
-        }
-
-        
-
-        //ui 갱신
-        if (MainUIWidget)
-        {
-            MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
-        }
-
-        
-        // 사망 처리
-        if (CurrentHealth <= 0)
-        {
-            UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
-            if (MainUIWidget)
-            {
-                MainUIWidget->ShowGameOver(); // 게임 오버 화면 띄우기
-            }
-        }
-    }
-
-    // UI에 바뀐 방어도/체력 알려주기
-    if (MainUIWidget)
-    {
-        MainUIWidget->UpdateBlockText(CurrentBlock);
-    }
-}
 
 void ASTSGameMode::AddStrength(int32 Amount)
 {
@@ -395,7 +311,7 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
 {
     // 층수 증가 및 스탯 초기화
     CurrentFloor++;
-    CurrentBlock = 0;
+    //CurrentBlock = 0;
     WeakStacks = 0;
     CurrentEnergy = MaxEnergy;
 
