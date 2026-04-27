@@ -144,7 +144,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Deck")
     void UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID);
 
-   
+    // 카드를 무덤 배열에 추가
+    UFUNCTION(BlueprintCallable, Category = "CardData")
+    void AddCardToDiscardPile(FName CardName);
 
 protected:
     // 실제 상태 변경 로직
@@ -165,7 +167,13 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	USTSUserWidget* MainUIWidget;
 
+    // 덱에 남은 카드 수 반환
+    UFUNCTION(BlueprintPure, Category = "CardData")
+    int32 GetDeckCount() const { return DrawPile.Num(); }
 
+    // 무덤에 쌓인 카드 수 반환
+    UFUNCTION(BlueprintPure, Category = "CardData")
+    int32 GetDiscardCount() const { return DiscardPile.Num(); }
   
    
 

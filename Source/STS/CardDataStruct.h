@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "Engine/Texture2D.h"
+#include "NiagaraSystem.h"
 #include "CardDataStruct.generated.h"
 
 /**
@@ -37,8 +38,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FText CardDescription;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
-	UTexture2D* Art;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CardData")
+	TSoftObjectPtr<class UTexture2D> Art;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName EffectId;
@@ -68,5 +69,13 @@ public:
 	// 타격 횟수 (기본값은 무조건 1번 때리도록 1로 설정)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	int32 HitCount = 1;
+
+	/** 카드 사용 시 재생할 캐릭터 애니메이션 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+	TSoftObjectPtr<UAnimMontage> CardMontage;
+
+	/** 카드 사용 시 타겟에게 나타날 이펙트 (나이아가라) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+	TSoftObjectPtr<class UNiagaraSystem> CardVFX;
 
 };

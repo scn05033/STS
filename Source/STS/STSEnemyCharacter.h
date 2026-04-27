@@ -139,6 +139,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat|Visuals")
 	void SetTargetingHighlight(bool bIsTargeted);
 
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	int32 GetPredictedHPChange(int32 IncomingDamage) const;
+
+	// 카드 위젯이 호출할 함수 (일반 함수로 선언)
+	void UpdatePredictionUI(int32 IncomingDamage);
+	void ClearPredictionUI();
+
+	
+
+
+
 protected:
 	
 
@@ -153,4 +164,10 @@ protected:
 
 	// 사망 처리를 전담할 함수
 	void Die();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void ForwardShowPrediction(int32 RealDamage, float CurrentHP, float MaxHP);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void ForwardHidePrediction(float CurrentHP, float MaxHP);
 };

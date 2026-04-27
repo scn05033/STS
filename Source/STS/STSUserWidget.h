@@ -33,7 +33,8 @@ protected:
 	// 카드 위젯 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "STS")
 	TSubclassOf<UUserWidget> CardWidgetClass;
-	UPROPERTY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "Cards")
 	TArray<USTSCardWidget*> CreatedCards;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
@@ -51,7 +52,9 @@ protected:
 	class UCanvasPanel* GameOverPanel;
 
 	
-
+	// C++이 블루프린트에게 애니메이션 재생을 지시하는 무전기
+	UFUNCTION(BlueprintImplementableEvent, Category = "Animation")
+	void PlayTurnEndAnimations();
 	UFUNCTION()
 	void OnTurnEndClicked();
 	virtual void NativeConstruct() override;
@@ -84,6 +87,8 @@ protected:
 
 	//UPROPERTY(BlueprintReadOnly)
 	//AActor* CurrentHoveredEnemy;
+
+	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 public:
 	UFUNCTION(BlueprintCallable)
 	void AddCards(int32 NewCards);
@@ -155,5 +160,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	AActor* GetEnemyUnderCursor(FVector2D ScreenPos);
 
+	// 생성된 카드의 시작 위치를 '덱'으로 강제 이동시키는 블루프린트 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Animation")
+	void SetInitialPositionToDeck(USTSCardWidget* NewCard);
+
+	void ShowAoEPrediction(int32 FinalDamage);
+
+	void HideAoEPrediction();
+
+	
 
 };

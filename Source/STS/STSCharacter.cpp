@@ -1,13 +1,17 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ï»¿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "STSCharacter.h"
 #include "Engine/LocalPlayer.h"
+#include "STSEnemyCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/GameplayStatics.h"
 #include "InputActionValue.h"
@@ -133,7 +137,7 @@ void ASTSCharacter::Look(const FInputActionValue& Value)
 
 void ASTSCharacter::PlayAttackAnim()
 {
-	// ¸ùÅ¸ÁÖ°¡ ¼¼ÆÃµÇ¾î ÀÖ´Ù¸é Àç»ıÇØ¶ó!
+	// ëª½íƒ€ì£¼ê°€ ì„¸íŒ…ë˜ì–´ ìˆë‹¤ë©´ ì¬ìƒí•´ë¼!
 	if (AttackMontage)
 	{
 		PlayAnimMontage(AttackMontage);
@@ -142,7 +146,7 @@ void ASTSCharacter::PlayAttackAnim()
 
 void ASTSCharacter::PlayHitReactAnim()
 {
-	// ¸ùÅ¸ÁÖ°¡ ¼¼ÆÃµÇ¾î ÀÖ´Ù¸é Àç»ıÇØ¶ó!
+	// ëª½íƒ€ì£¼ê°€ ì„¸íŒ…ë˜ì–´ ìˆë‹¤ë©´ ì¬ìƒí•´ë¼!
 	if (AttackMontage)
 	{
 		PlayAnimMontage(HitReactMontage);
@@ -151,63 +155,128 @@ void ASTSCharacter::PlayHitReactAnim()
 
 void ASTSCharacter::ExecuteHit()
 {
-	if (CurrentTarget && PendingDamage > 0)
+	// ê´‘ì—­ ê³µê²©ì¼ ê²½ìš°
+	if (bIsAoEAttack && PendingDamage > 0)
 	{
-		// ¿©±â¼­ ÁøÂ¥ ApplyDamage¸¦ ½ÇÇà
-		UGameplayStatics::ApplyDamage(CurrentTarget, PendingDamage, GetController(), this, UDamageType::StaticClass());
+		TArray<AActor*> FoundEnemies;
 
-		// ÀÌÆåÆ®³ª »ç¿îµå¸¦ C++¿¡¼­ ÅÍ¶ß·Áµµ ÁÁ½À´Ï´Ù.
-		UE_LOG(LogTemp, Warning, TEXT("³ëÆ¼ÆÄÀÌ ¹ß»ı! Àû¿¡°Ô %d µ¥¹ÌÁö¸¦ ÀÔÇû½À´Ï´Ù."), PendingDamage);
+		// íƒœê·¸(Tag) ê²€ì‚¬ë¥¼ ë¹¼ë²„ë¦¬ê³  ë§µì— ìˆëŠ” 'ì  ìºë¦­í„°'ëŠ” ë¬´ì¡°ê±´ ë‹¤ ê°€ì ¸ì˜µë‹ˆë‹¤ (ê°€ì¥ í™•ì‹¤í•¨)
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
+
+		for (AActor* Actor : FoundEnemies)
+		{
+			if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+			{
+				UGameplayStatics::ApplyDamage(
+					Enemy,
+					PendingDamage,
+					GetController(),
+					this,
+					UDamageType::StaticClass()
+				);
+				if (PendingStatusAmount > 0 && PendingStatusType == FName("Vulnerable"))
+				{
+					Enemy->VulnerableStacks += PendingStatusAmount;
+					UE_LOG(LogTemp, Warning, TEXT("[ê´‘ì—­] %sì—ê²Œ ì·¨ì•½ %d ìŠ¤íƒ ë¶€ì—¬! (í˜„ì¬: %d)"), *Enemy->GetName(), PendingStatusAmount, Enemy->VulnerableStacks);
+				}
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("ëª¨ë“  ì ì—ê²Œ %d ë°ë¯¸ì§€ë¥¼ ì…í˜”ìŠµë‹ˆë‹¤!"), PendingDamage);
 	}
+
+	// ë‹¨ì¼ ê³µê²©ì¼ ê²½ìš°
+	else if (CurrentTarget && PendingDamage > 0)
+	{
+		UGameplayStatics::ApplyDamage(
+			CurrentTarget,
+			PendingDamage,
+			GetController(),
+			this,
+			UDamageType::StaticClass()
+		);
+		if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(CurrentTarget))
+		{
+			if (PendingStatusAmount > 0 && PendingStatusType == FName("Vulnerable"))
+			{
+				Enemy->VulnerableStacks += PendingStatusAmount;
+				UE_LOG(LogTemp, Warning, TEXT("[ë‹¨ì¼] %sì—ê²Œ ì·¨ì•½ %d ìŠ¤íƒ ë¶€ì—¬! (í˜„ì¬: %d)"), *Enemy->GetName(), PendingStatusAmount, Enemy->VulnerableStacks);
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT(" ì ì—ê²Œ %d ë°ë¯¸ì§€ë¥¼ ì…í˜”ìŠµë‹ˆë‹¤."), PendingDamage);
+	}
+	PendingStatusAmount = 0;
+	PendingStatusType = NAME_None;
+
+	
 }
 
 void ASTSCharacter::AddBlock(int32 Amount)
 {
 	CurrentBlock += Amount;
-	OnBlockChanged.Broadcast(CurrentBlock); // ¹æ¾îµµ UI ¾÷µ¥ÀÌÆ® ¹æ¼Û
+	OnBlockChanged.Broadcast(CurrentBlock); // ë°©ì–´ë„ UI ì—…ë°ì´íŠ¸ ë°©ì†¡
 }
 
 void ASTSCharacter::TakePlayerDamage(int32 Damage)
 {
 	int32 ActualDamage = Damage;
 
-	// ¹æ¾îµµ°¡ ÀÖ´Ù¸é ¸ÕÀú ±ğ±â
+	// ë°©ì–´ë„ê°€ ìˆë‹¤ë©´ ë¨¼ì € ê¹ê¸°
 	if (CurrentBlock > 0)
 	{
 		if (CurrentBlock >= ActualDamage)
 		{
-			// ¹æ¾îµµ°¡ ÃæºĞÇØ¼­ ´Ù ¸·À½
+			// ë°©ì–´ë„ê°€ ì¶©ë¶„í•´ì„œ ë‹¤ ë§‰ìŒ
 			CurrentBlock -= ActualDamage;
+			// ì†Œë¦¬ ì¬ìƒ
+			UGameplayStatics::PlaySoundAtLocation(this, BlockSound, GetActorLocation());
+			// ë°©ì–´ íŒŒí‹°í´ ì¬ìƒ
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BlockVFX, GetActorLocation());
+
 			ActualDamage = 0;
-			UE_LOG(LogTemp, Warning, TEXT("¹æ¾îµµ·Î ¿Ïº®È÷ ¸·¾Ò½À´Ï´Ù! (³²Àº ¹æ¾îµµ: %d)"), CurrentBlock);
+			UE_LOG(LogTemp, Warning, TEXT("ë°©ì–´ë„ë¡œ ì™„ë²½íˆ ë§‰ì•˜ìŠµë‹ˆë‹¤! (ë‚¨ì€ ë°©ì–´ë„: %d)"), CurrentBlock);
 		}
 		else
 		{
-			// ¹æ¾îµµ°¡ ±úÁö°í µ¥¹ÌÁö°¡ °üÅëÇÔ
+			// ë°©ì–´ë„ê°€ ê¹¨ì§€ê³  ë°ë¯¸ì§€ê°€ ê´€í†µí•¨
 			ActualDamage -= CurrentBlock;
-			UE_LOG(LogTemp, Warning, TEXT("¹æ¾îµµ°¡ ÆÄ±«µÇ°í, %dÀÇ ÇÇÇØ°¡ °üÅëÇß½À´Ï´Ù!"), ActualDamage);
+			// ì†Œë¦¬ ì¬ìƒ
+			UGameplayStatics::PlaySoundAtLocation(this, ShieldBreakSound, GetActorLocation());
+			//UI ì• ë‹ˆë©”ì´ì…˜ ì¬ìƒ
+			OnShieldBroken();
+			// íŒŒí‹°í´ ì¬ìƒ
+			//UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ShieldBreakVFX, GetActorLocation());
+
+
+			UE_LOG(LogTemp, Warning, TEXT("ë°©ì–´ë„ê°€ íŒŒê´´ë˜ê³ , %dì˜ í”¼í•´ê°€ ê´€í†µí–ˆìŠµë‹ˆë‹¤!"), ActualDamage);
 			CurrentBlock = 0;
 		}
 
-		// ¹æ¾îµµ UI ¾÷µ¥ÀÌÆ® ¹æ¼Û
+		// ë°©ì–´ë„ UI ì—…ë°ì´íŠ¸ ë°©ì†¡
 		OnBlockChanged.Broadcast(CurrentBlock);
 	}
 
-	// ³²Àº µ¥¹ÌÁö¸¦ Ã¼·Â¿¡¼­ ±ğ±â
+	// ë‚¨ì€ ë°ë¯¸ì§€ë¥¼ ì²´ë ¥ì—ì„œ ê¹ê¸°
 	if (ActualDamage > 0)
 	{
 		CurrentHealth -= ActualDamage;
-		UE_LOG(LogTemp, Error, TEXT("ÇÃ·¹ÀÌ¾î°¡ %dÀÇ ÇÇÇØ¸¦ ÀÔ¾ú½À´Ï´Ù! (³²Àº Ã¼·Â: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
+		UE_LOG(LogTemp, Error, TEXT("í”Œë ˆì´ì–´ê°€ %dì˜ í”¼í•´ë¥¼ ì…ì—ˆìŠµë‹ˆë‹¤! (ë‚¨ì€ ì²´ë ¥: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
+
+		// ì†Œë¦¬ ì¬ìƒ 
+		UGameplayStatics::PlaySoundAtLocation(this, FleshHitSound, GetActorLocation());
+		//íŒŒí‹°í´ ì¬ìƒ
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BloodVFX, GetActorLocation());
 
 		if (CurrentHealth <= 0)
 		{
 			CurrentHealth = 0;
-			//UE_LOG(LogTemp, Error, TEXT("ÇÃ·¹ÀÌ¾î »ç¸Á! °ÔÀÓ ¿À¹ö!"));
+			//UE_LOG(LogTemp, Error, TEXT("í”Œë ˆì´ì–´ ì‚¬ë§! ê²Œì„ ì˜¤ë²„!"));
 
 		}
-		// Ã¼·Â UI ¾÷µ¥ÀÌÆ® ¹æ¼Û
+		// ì²´ë ¥ UI ì—…ë°ì´íŠ¸ ë°©ì†¡
 		OnHealthChanged.Broadcast(CurrentHealth);
-		//ÇÇ°İ ¾Ö´Ï¸ŞÀÌ¼Ç Àç»ı 
+		//í”¼ê²© ì• ë‹ˆë©”ì´ì…˜ ì¬ìƒ 
 		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
 		{
 			if (PlayerChar->HitReactMontage)
@@ -216,7 +285,7 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 			}
 			if (PlayerChar->HitEffect)
 			{
-				// ÀÌÆåÆ®¸¦ ³» ¸öÅë À§Ä¡(GetActorLocation)¿¡¼­ Æã ÅÍ¶ß¸³´Ï´Ù!
+				// ì´í™íŠ¸ë¥¼ ë‚´ ëª¸í†µ ìœ„ì¹˜(GetActorLocation)ì—ì„œ í‘ í„°ëœ¨ë¦½ë‹ˆë‹¤!
 				UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PlayerChar->HitEffect, PlayerChar->GetActorLocation());
 			}
 		}
@@ -225,11 +294,11 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 
 
 
-		// »ç¸Á Ã³¸®
+		// ì‚¬ë§ ì²˜ë¦¬
 		if (CurrentHealth <= 0)
 		{
-			//UE_LOG(LogTemp, Error, TEXT("ÇÃ·¹ÀÌ¾î »ç¸Á! °ÔÀÓ ¿À¹ö!"));
-			// °ÔÀÓ ¿À¹ö ¹æ¼Û
+			//UE_LOG(LogTemp, Error, TEXT("í”Œë ˆì´ì–´ ì‚¬ë§! ê²Œì„ ì˜¤ë²„!"));
+			// ê²Œì„ ì˜¤ë²„ ë°©ì†¡
 			OnPlayerDeath.Broadcast();
 		}
 	}
@@ -237,10 +306,104 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 
 void ASTSCharacter::HealPlayer(int32 HealAmount)
 {
-	// Ã¼·ÂÀ» È¸º¹½ÃÅ°°í, MaxHealth¸¦ ³ÑÁö ¾Ê°Ô Àß¶óÁİ´Ï´Ù
+	// ì²´ë ¥ì„ íšŒë³µì‹œí‚¤ê³ , MaxHealthë¥¼ ë„˜ì§€ ì•Šê²Œ ì˜ë¼ì¤ë‹ˆë‹¤
 	CurrentHealth = FMath::Clamp(CurrentHealth + HealAmount, 0, MaxHealth);
 
-	// Ã¼·Â UI ¾÷µ¥ÀÌÆ® ¹æ¼Û
+	// ì²´ë ¥ UI ì—…ë°ì´íŠ¸ ë°©ì†¡
 	OnHealthChanged.Broadcast(CurrentHealth);
+}
+
+
+void ASTSCharacter::EnqueueAction(const FActionCommand& NewAction)
+{
+	// ëª…ë ¹ì„œë¥¼ íì— ë„£ìŠµë‹ˆë‹¤.
+	ActionQueue.Add(NewAction);
+
+	// íì— ì˜ ë“¤ì–´ì™”ëŠ”ê°€ì§€ ë¡œê·¸ë¡œ í™•ì¸
+	UE_LOG(LogTemp, Warning, TEXT("íì— ëª…ë ¹ ì ‘ìˆ˜ë¨! í˜„ì¬ ëŒ€ê¸°ì—´ ìˆ˜: %d"), ActionQueue.Num());
+
+	if (!bIsProcessingAction)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ìºë¦­í„°ê°€ ë†€ê³  ìˆìœ¼ë¯€ë¡œ ì¦‰ì‹œ ì‹¤í–‰í•©ë‹ˆë‹¤!"));
+		ProcessNextAction();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ê²½ê³ ] ìºë¦­í„°ê°€ ì•„ì§ ì´ì „ í–‰ë™ì„ ëë‚´ì§€ ì•Šì•„ ëŒ€ê¸°í•©ë‹ˆë‹¤! (Complete í˜¸ì¶œ ëˆ„ë½ ì˜ì‹¬)"));
+	}
+}
+
+void ASTSCharacter::ProcessNextAction()
+{
+
+	UE_LOG(LogTemp, Warning, TEXT("í˜„ì¬ í ì”ëŸ‰: %d"), ActionQueue.Num());
+	// íê°€ ë¹„ì–´ìˆìœ¼ë©´ í‡´ê·¼
+	if (ActionQueue.Num() == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("íê°€ ë¹„ì—ˆìŠµë‹ˆë‹¤. Idle ìƒíƒœë¡œ ë³µê·€í•©ë‹ˆë‹¤."));
+		bIsProcessingAction = false;
+		bIsExecutingAction = false; // ì¼ ëë‚¨
+		return;
+	}
+	if (bIsExecutingAction) return;
+	// ì¼ ì‹œì‘
+	bIsProcessingAction = true;
+	bIsExecutingAction = true; // ì´ì œë¶€í„° ì§„ì§œ ì¼ ì‹œì‘!
+
+	// íì˜ ë§¨ ì•(0ë²ˆ) ëª…ë ¹ì„œë¥¼ êº¼ë‚´ì„œ ì½ìŠµë‹ˆë‹¤.
+	FActionCommand CurrentAction = ActionQueue[0];
+
+	// ìºë¦­í„°ì˜ ìƒíƒœë¥¼ ëª…ë ¹ì„œëŒ€ë¡œ ì„¸íŒ…í•©ë‹ˆë‹¤.
+	bIsAoEAttack = CurrentAction.bIsAoE;
+	CurrentTarget = CurrentAction.TargetEnemy;
+	PendingDamage = CurrentAction.Damage;
+	CurrentTarget = CurrentAction.TargetEnemy;
+	PendingStatusType = CurrentAction.StatusType;     
+	PendingStatusAmount = CurrentAction.StatusAmount;
+
+	if (CurrentAction.ActionType == FName("Attack"))
+	{
+		if (CurrentAction.bIsAoE)
+		{
+			PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
+			//CompleteCurrentAction();
+		}
+		else
+		{
+			DashAndAttack(CurrentTarget, CurrentAction.Montage, CurrentAction.VFX);
+		}
+	}
+	else if (CurrentAction.ActionType == FName("Defend"))
+	{
+		// ë°©ì–´ ì• ë‹ˆë©”ì´ì…˜ì€ ì œìë¦¬ì—ì„œ ì¬ìƒ
+		PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
+		//CompleteCurrentAction();
+	}
+	else
+	{
+		// ì• ë‹ˆë©”ì´ì…˜ì´ ì—†ëŠ” ê¸°íƒ€ ì¹´ë“œë¼ë©´ ì¦‰ì‹œ ë„˜ê¹€
+		CompleteCurrentAction();
+	}
+}
+
+void ASTSCharacter::CompleteCurrentAction()
+{
+
+	UE_LOG(LogTemp, Log, TEXT("ì•¡ì…˜ ì™„ë£Œ ë³´ê³  ì ‘ìˆ˜ë¨."));
+	// ë§Œì•½ ì‹¤í–‰ ì¤‘ì¸ ì•¡ì…˜ì´ ì—†ëŠ”ë° í˜¸ì¶œëë‹¤ë©´ ë¬´ì‹œí•œë‹¤
+	if (!bIsExecutingAction)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ì˜¤ë¥˜: ì‹¤í–‰ ì¤‘ì¸ ì•¡ì…˜ì´ ì—†ëŠ”ë° Completeê°€ í˜¸ì¶œë¨!"));		return;
+	}
+	// í”Œë˜ê·¸ë¥¼ ë„ê³  íë¥¼ ì •ë¦¬í•©ë‹ˆë‹¤.
+	bIsExecutingAction = false;
+	// ë°©ê¸ˆ ëë‚¸ í–‰ë™ì„ íì—ì„œ ì§€ì›Œë²„ë¦½ë‹ˆë‹¤.
+	if (ActionQueue.Num() > 0)
+	{
+		ActionQueue.RemoveAt(0);
+	}
+
+	// ë‹¤ìŒ ëª…ë ¹ì„œê°€ ìˆëŠ”ì§€ í™•ì¸í•˜ê³  ì‹¤í–‰í•©ë‹ˆë‹¤.
+	ProcessNextAction();
 }
 	

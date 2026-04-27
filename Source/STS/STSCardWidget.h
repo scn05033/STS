@@ -5,6 +5,8 @@
 #include "Layout/Geometry.h"       
 #include "Input/Events.h" 
 #include "Blueprint/DragDropOperation.h"
+#include "Components/HorizontalBox.h"
+#include "Components/TextBlock.h"
 #include "STSCardWidget.generated.h"
 
 class UTextBlock;
@@ -23,11 +25,27 @@ protected:
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* Cost;
 
-    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-    UTextBlock* CardDescription;
+   // UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+   // class URichTextBlock* CardDescription;
+
+    //UPROPERTY(meta = (BindWidget))
+    //class UHorizontalBox* DescBox;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* LeftText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* ValueText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* RightText;
+
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* CardArtImage;
 
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-    UImage* CardImage;
+    UTextBlock* CardType;
 
     // 마우스가 위젯 영역에 들어왔을 때 
     virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -46,7 +64,8 @@ protected:
 
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
- 
+    UPROPERTY()
+    class ASTSEnemyCharacter* CurrentTargetEnemy;
 
 public:
     // 데이터를 받아서 UI를 갱신하는 함수
@@ -56,6 +75,7 @@ public:
 
     FCardData GetCardData() const { return CurrentCardData; }
 
+    UPROPERTY(BlueprintReadWrite)
     FName CardRowName;
 
     // 이 카드가 현재 대장간(강화 창)에 있는지 여부
@@ -65,4 +85,16 @@ public:
     // 블루프린트에서 구현할 이벤트 (카드가 대장간에서 클릭되었을 때 발동)
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
     void OnCardClickedForSmithing();
+
+    // 블루프린트에 만들어둔 비행 이벤트를 C++에서 호출하기 위한 껍데기
+    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Animation")   
+    void Anim_FlyToLocation(FVector2D TargetPosition, bool bIsDiscarding);
+
+    // 데미지를 계산해주는 전용 함수
+    UFUNCTION(BlueprintCallable, Category = "Card|Calculate")
+    int32 CalculateFinalDamage(int32 InBaseDamage, int32 InPlayerStrength, bool bIsTargetVulnerable, bool bIsPlayerWeak);
+
+    // 타겟을 전달받고 텍스트를 갱신하는 함수
+    UFUNCTION(BlueprintCallable, Category = "Card|Targeting")
+    void UpdateTargetAndRefreshText(class ASTSEnemyCharacter* TargetEnemy);
 };

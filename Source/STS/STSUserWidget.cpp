@@ -18,6 +18,7 @@
 #include "DrawDebugHelpers.h"
 #include "STSCharacter.h"
 #include "Rendering/DrawElements.h"
+#include "Components/Overlay.h"
 #include "GameFramework/PlayerController.h" 
 #include "Engine/World.h"
 
@@ -60,6 +61,9 @@ void USTSUserWidget::AddCards(int32 Amount)
                 // 손패 패널에 추가하고 배열에 관리
                 HandAreaPanel->AddChild(NewCard);
                 CreatedCards.Add(NewCard);
+
+                //화면에 그려지기 전에 카드의 시작 위치를 '덱 위치'로 강제 셋팅
+                SetInitialPositionToDeck(NewCard);
             }
         }
     }
@@ -96,8 +100,14 @@ void USTSUserWidget::UpdateCardLayout()
         float RotationAngle = Offset * 5.0f;
         CardSlot->SetAlignment(FVector2D(0.5f, 1.0f));
         Card->SetRenderTransformAngle(RotationAngle);
-        CardSlot->SetPosition(NewPosition);
+        //CardSlot->SetPosition(NewPosition);
         CardSlot->SetSize(FVector2D(200.0f, 300.0f));
+
+        // C++에서 계산된 NewPosition으로 날아가라고 명령
+        if (USTSCardWidget* CardWidget = Cast<USTSCardWidget>(Card))
+        {
+            CardWidget->Anim_FlyToLocation(NewPosition, false); // 손패로 가는 거니까 버리기(false)
+        }
 
        
     }
@@ -122,10 +132,14 @@ void USTSUserWidget::NativeConstruct()
 void USTSUserWidget::OnTurnEndClicked()
 {
     // 게임 모드를 찾아서 "턴 끝낼래요"라고 보고
-    if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
-    {
-        GM->EndPlayerTurn();
-    }
+   // if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
+    //{
+     //   GM->EndPlayerTurn();
+    //}
+    
+	// 블루프린트에게 턴 종료 애니메이션 재생하라고 무전기 발신
+    PlayTurnEndAnimations();
+
 }
 
 void USTSUserWidget::EmptyHand()
@@ -234,6 +248,8 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
         if (CardData.bIsAoE)
         {
             UE_LOG(LogTemp, Warning, TEXT("광역 공격 카드 발동 준비!"));
+
+            HideAoEPrediction();
         }
         else
         {
@@ -254,6 +270,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     if (CurrentHoveredEnemy)
     {
         CurrentHoveredEnemy->SetTargetingHighlight(false);
+        CurrentHoveredEnemy->ClearPredictionUI();
         CurrentHoveredEnemy = nullptr;
     }
 
@@ -261,116 +278,80 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     // 에너지 결제
     if (!GM->TryUseEnergy(CardData.Cost)) return false;
     UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
+    UE_LOG(LogTemp, Warning, TEXT("에너지 결제 완료! %s 카드 발동 준비"), *CardData.Type.ToString());
+   
 
-    // 카드 효과 발동!
+    // 캐릭터 가져오기 및 '빈 명령서' 준비
+    ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(PC->GetPawn());
+    if (!PlayerChar)
+    {
+        // 만약 여기서 막혔다면 범인은 캐스팅 실패
+        UE_LOG(LogTemp, Error, TEXT("PlayerChar를 찾을 수 없습니다!"));
+        return false;
+    }
+    FActionCommand NewCmd;
+    NewCmd.ActionType = CardData.Type;  // Attack, Defend 등
+    NewCmd.bIsAoE = CardData.bIsAoE;
+    NewCmd.TargetEnemy = TargetEnemy;
+    NewCmd.Montage = CardData.CardMontage.LoadSynchronous();
+    NewCmd.VFX = CardData.CardVFX.LoadSynchronous();
+    NewCmd.Damage = 0; // 기본값
+
+    // 카드 종류에 따라 로직 처리
     if (CardData.Type == FName("Attack"))
     {
-        // [힘(Strength)] 기본 데미지 + 내 힘
-        int32 DamageWithStrength = CardData.BaseDamage;
-        if (GM) { DamageWithStrength += GM->CurrentStrength; }
+        // 플레이어가 가하는 순수(Outgoing) 데미지 
+        // 기본 공격력 + 힘
+        int32 DamageWithStrength = CardData.BaseDamage + (GM ? GM->CurrentStrength : 0);
+        float OutgoingDamage = (float)DamageWithStrength;
 
-        // [약화(Weak)] 데미지 감소
-        int32 FinalPlayerDamage = DamageWithStrength;
+        // 내가 약화(Weak)에 걸려있을 때만 0.75배 감소
         if (GM && GM->WeakStacks > 0)
         {
-            FinalPlayerDamage = FMath::FloorToInt(DamageWithStrength * 0.75f);
-            UE_LOG(LogTemp, Warning, TEXT("[약화 발동] 힘 적용 데미지 %d 가 %d 로 감소!"), DamageWithStrength, FinalPlayerDamage);
+            OutgoingDamage *= 0.75f;
         }
 
-        // [단일 공격일 때]
-        if (!CardData.bIsAoE && TargetEnemy)
-        {
-            if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(PC->GetPawn()))
-            {
-                // 캐릭터에게 '데미지'와 '타겟(C++)'을 완벽하게 기억시킵니
-                PlayerChar->PendingDamage = FinalPlayerDamage;
-                PlayerChar->CurrentTarget = TargetEnemy;
+        int32 FinalPlayerDamage = FMath::FloorToInt(OutgoingDamage);
 
-				// 돌진해서 공격하는 애니메이션 재생 (데미지 적용은 애니메이션 노티파이에서)   
-                PlayerChar->DashAndAttack(TargetEnemy);
-            }
+       //순수 대미지만 전달
+        NewCmd.Damage = FinalPlayerDamage;
 
-            // [상태이상 부여] 
-            if (CardData.StatusAmount > 0 && CardData.StatusType == FName("Vulnerable"))
-            {
-                if (ASTSEnemyCharacter* EnemyChar = Cast<ASTSEnemyCharacter>(TargetEnemy))
-                {
-                    EnemyChar->VulnerableStacks += CardData.StatusAmount;
-                }
-            }
-        }
-        // [광역 공격일 때] 
-        else if (CardData.bIsAoE)
-        {
-            TArray<AActor*> FoundEnemies;
-            UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("CurrentBattle"), FoundEnemies);
+        
+        NewCmd.StatusType = CardData.StatusType;     // 예: "Vulnerable"
+        NewCmd.StatusAmount = CardData.StatusAmount; // 예: 2
 
-            for (AActor* Actor : FoundEnemies)
-            {
-                if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
-                {
-                    // 광역은 당장 애니메이션 세팅이 안 되어 있으니 예전처럼 즉시 데미지 처리
-                    UGameplayStatics::ApplyDamage(Enemy, FinalPlayerDamage, PC, PC->GetPawn(), UDamageType::StaticClass());
-                }
-            }
-        }
+        // 플레이어 액션 큐에 공격 명령서 제출
+        PlayerChar->EnqueueAction(NewCmd);
     }
-    // 수비 카드일 때
     else if (CardData.Type == FName("Defend"))
     {
-        //게임모드 대신 플레이어 캐릭터를 가져옵니다.
-            if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
-            {
-                PlayerChar->AddBlock(CardData.BaseBlock);
-            }
+        // 방어도는 '즉시' 올립니다
+        PlayerChar->AddBlock(CardData.BaseBlock);
 
-        UE_LOG(LogTemp, Warning, TEXT("방어도 증가: %d"), CardData.BaseBlock);
-        if (CardData.DrawAmount > 0)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("카드 드로우 효과 발동! %d 장 드로우"), CardData.DrawAmount);
-            AddCards(CardData.DrawAmount);
-		}
+        // 하지만 방어 애니메이션은 큐에 넣어서 순서대로 재생시킵니다.
+        PlayerChar->EnqueueAction(NewCmd);
+
+        if (CardData.DrawAmount > 0) AddCards(CardData.DrawAmount);
     }
     else if (CardData.Type == FName("Power"))
     {
-        // 엑셀에 적어둔 StatusType이 "STRENGTH" 라면?
-        if (CardData.StatusType == FName("STRENGTH"))
-        {
-            // 플레이어의 힘을 StatusAmount(2) 만큼 올려줍니다!
+        // 파워는 애니메이션 없이 즉시 발동
+        if (CardData.StatusType == FName("STRENGTH") && GM)
             GM->AddStrength(CardData.StatusAmount);
-        }
     }
     else if (CardData.Type == FName("Skill"))
     {
-        // 방어도(Block) 획득 로직이 있다면 
-        if (CardData.BaseBlock > 0 && GM)
+        // 스킬도 즉시 발동
+        if (CardData.BaseBlock > 0) PlayerChar->AddBlock(CardData.BaseBlock);
+        if (CardData.StatusAmount > 0 && CardData.StatusType == FName("ENERGY") && GM)
         {
-            // 예: GM->CurrentBlock += CardData.BaseBlock;
-            UE_LOG(LogTemp, Warning, TEXT("[방어] 방어도를 %d 얻었습니다!"), CardData.BaseBlock);
+            GM->CurrentEnergy += CardData.StatusAmount;
+            UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
         }
-
-        // StatusType이 ENERGY 라면 에너지 펌핑
-        if (CardData.StatusAmount > 0 && CardData.StatusType == FName("ENERGY"))
-        {
-            if (GM)
-            {
-                // 플레이어의 현재 에너지에 StatusAmount(2)를 추가
-                GM->CurrentEnergy += CardData.StatusAmount;
-
-                UE_LOG(LogTemp, Warning, TEXT("[에너지 펌핑] 에너지를 %d 얻었습니다! 현재 에너지: %d"), CardData.StatusAmount, GM->CurrentEnergy);
-
-                UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
-            }
-        }
-
-        //  드로우 효과가 있다면 여기서 처리!
-        if (CardData.DrawAmount > 0)
-        {
-            // DrawCards(CardData.DrawAmount);
-        }
+        if (CardData.DrawAmount > 0) AddCards(CardData.DrawAmount);
     }
 
-    // 카드 버리기
+    // 카드 버리기 (기존 코드 유지)
     GM->AddToDiscardPile(DroppedCard->CardRowName);
     DroppedCard->RemoveFromParent();
     CreatedCards.Remove(DroppedCard);
@@ -407,46 +388,56 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
     Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
 
     USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
-    // 마우스의 절대 좌표를 로컬 좌표로 변환합니다.
-    FVector2D MouseLocalPos = InGeometry.AbsoluteToLocal(CurrentDragScreenPos);
     if (!DraggedCard) return true;
 
     FCardData CardData = DraggedCard->GetCardData();
 
+    // -------------------------------------------------------------------------
+    // 드래그 비주얼에서 실제 카드 위젯 꺼내기
+    // -------------------------------------------------------------------------
+    USTSCardWidget* VisualCard = Cast<USTSCardWidget>(InOperation->DefaultDragVisual);
+    if (!VisualCard)
+    {
+        if (UPanelWidget* DragWrapper = Cast<UPanelWidget>(InOperation->DefaultDragVisual))
+        {
+            if (DragWrapper->GetChildrenCount() > 0)
+            {
+                VisualCard = Cast<USTSCardWidget>(DragWrapper->GetChildAt(0));
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. 단일 타겟 공격 로직
+    // -------------------------------------------------------------------------
     if (CardData.Type == FName("Attack") && !CardData.bIsAoE)
     {
         bIsTargeting = true;
         CurrentDragScreenPos = InDragDropEvent.GetScreenSpacePosition();
+        FVector2D MouseLocalPos = InGeometry.AbsoluteToLocal(CurrentDragScreenPos);
 
         ASTSEnemyCharacter* BestTarget = nullptr;
         APlayerController* PC = GetOwningPlayer();
-
-        // 자석 반경 설정 (이 픽셀 반경 안에 들어와야 타겟팅 됨. 너무 크면 화면 끝에서도 타겟팅 됩니다)
         float MinDistance = 400.0f;
 
         if (PC)
         {
-            // 모든 적을 가져옵니다. 
             TArray<AActor*> FoundEnemies;
             UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("Enemy"), FoundEnemies);
 
             for (AActor* Actor : FoundEnemies)
             {
                 ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor);
-                if (Enemy && Enemy->CurrentHealth > 0) // 살아있는 적만 검사
+                if (Enemy && Enemy->CurrentHealth > 0)
                 {
-                    FVector2D EnemyScreenPos;
-                    // 적의 3D 위치를 2D 화면(모니터) 좌표로 변환합니다
-                    // (발끝이 아닌 가슴/머리 쪽을 타겟팅하도록 Z축으로 +100 정도 올려주면 좋습니다)
                     FVector TargetLocation = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+                    FVector2D EnemyScreenPos;
 
                     if (PC->ProjectWorldLocationToScreen(TargetLocation, EnemyScreenPos))
                     {
-                        //몬스터의 창 기준 픽셀 좌표를 UI 로컬 좌표로 변환합니다
                         FVector2D EnemyLocalPos;
                         USlateBlueprintLibrary::ScreenToWidgetLocal(this, InGeometry, EnemyScreenPos, EnemyLocalPos);
 
-                        // 둘 다 로컬 좌표로 통일되었으니, 이제 거리가 100% 정확하게 계산됩니다.
                         float Dist = FVector2D::Distance(MouseLocalPos, EnemyLocalPos);
                         if (Dist < MinDistance)
                         {
@@ -458,21 +449,94 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
             }
         }
 
-        // 기존 하이라이트 교체 로직 (HoveredEnemy 대신 BestTarget 사용)
+        int32 ExpectedPlayerDamage = CardData.BaseDamage;
+        if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
+        {
+            ExpectedPlayerDamage += GM->CurrentStrength;
+            if (GM->WeakStacks > 0)
+            {
+                ExpectedPlayerDamage = FMath::FloorToInt(ExpectedPlayerDamage * 0.75f);
+            }
+        }
+
         if (CurrentHoveredEnemy != BestTarget)
         {
-            if (CurrentHoveredEnemy) CurrentHoveredEnemy->SetTargetingHighlight(false);
+            if (CurrentHoveredEnemy)
+            {
+                CurrentHoveredEnemy->SetTargetingHighlight(false);
+                CurrentHoveredEnemy->ClearPredictionUI();
+            }
+
             CurrentHoveredEnemy = BestTarget;
-            if (CurrentHoveredEnemy) CurrentHoveredEnemy->SetTargetingHighlight(true);
+
+            if (CurrentHoveredEnemy)
+            {
+                CurrentHoveredEnemy->SetTargetingHighlight(true);
+                CurrentHoveredEnemy->UpdatePredictionUI(ExpectedPlayerDamage);
+            }
+
+            if (VisualCard)
+            {
+                VisualCard->UpdateTargetAndRefreshText(CurrentHoveredEnemy);
+            }
         }
     }
+
+    // -------------------------------------------------------------------------
+    //  2. 광역 공격(AoE) 로직 (단일 타겟 로직과 완전히 분리됨!)
+    // -------------------------------------------------------------------------
+    else if (CardData.Type == FName("Attack") && CardData.bIsAoE)
+    {
+        bIsTargeting = true;
+
+        int32 ExpectedPlayerDamage = CardData.BaseDamage;
+        if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
+        {
+            ExpectedPlayerDamage += GM->CurrentStrength;
+            if (GM->WeakStacks > 0)
+            {
+                ExpectedPlayerDamage = FMath::FloorToInt(ExpectedPlayerDamage * 0.75f);
+            }
+        }
+
+        TArray<AActor*> FoundEnemies;
+        UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ASTSEnemyCharacter::StaticClass(), FName("Enemy"), FoundEnemies);
+
+        for (AActor* Actor : FoundEnemies)
+        {
+            if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
+            {
+                if (Enemy->CurrentHealth > 0)
+                {
+                    Enemy->SetTargetingHighlight(true);
+                    Enemy->UpdatePredictionUI(ExpectedPlayerDamage);
+                }
+            }
+        }
+
+        if (VisualCard)
+        {
+            VisualCard->UpdateTargetAndRefreshText(nullptr);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. 타겟팅 취소 로직 (스킬 카드나 기타)
+    // -------------------------------------------------------------------------
     else
     {
         bIsTargeting = false;
+
         if (CurrentHoveredEnemy)
         {
             CurrentHoveredEnemy->SetTargetingHighlight(false);
+            CurrentHoveredEnemy->ClearPredictionUI();
             CurrentHoveredEnemy = nullptr;
+
+            if (VisualCard)
+            {
+                VisualCard->UpdateTargetAndRefreshText(nullptr);
+            }
         }
     }
 
@@ -677,3 +741,59 @@ void USTSUserWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UD
     bIsTargeting = false;
     CurrentHoveredEnemy = nullptr;
 }
+
+void USTSUserWidget::ShowAoEPrediction(int32 FinalDamage) 
+{
+    TArray<AActor*> AllEnemies;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), AllEnemies);
+
+    for (AActor* EnemyActor : AllEnemies)
+    {
+        if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(EnemyActor))
+        {
+            //Enemy->SetTargetingHighlight(true);
+
+            
+            Enemy->UpdatePredictionUI(FinalDamage);
+        }
+    }
+}
+
+void USTSUserWidget::HideAoEPrediction()
+{
+    TArray<AActor*> AllEnemies;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), AllEnemies);
+
+    for (AActor* EnemyActor : AllEnemies)
+    {
+        if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(EnemyActor))
+        {
+            //Enemy->SetTargetingHighlight(false);
+            //모두의 예측 UI 끄기
+            Enemy->ClearPredictionUI();
+        }
+    }
+}
+
+void USTSUserWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    Super::NativeOnDragEnter(InGeometry, InDragDropEvent, InOperation);
+
+    USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
+    if (!DraggedCard) return;
+
+    FCardData CardData = DraggedCard->GetCardData();
+
+    // 광역 공격 카드라면 드래그 시작 즉시 모든 적에게 예측 UI를 띄우라고 명령
+    if (CardData.Type == FName("Attack") && CardData.bIsAoE)
+    {
+        ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+        int32 FinalDamage = CardData.BaseDamage + (GM ? GM->CurrentStrength : 0);
+
+        // 이전에 만들어둔 함수 호출
+        ShowAoEPrediction(FinalDamage);
+
+        UE_LOG(LogTemp, Warning, TEXT("광역 공격 예측 UI 기동!"));
+    }
+}
+

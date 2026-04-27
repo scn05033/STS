@@ -366,3 +366,37 @@ void ASTSEnemyCharacter::SetTargetingHighlight(bool bIsTargeted)
 		// if (TargetingParticle) TargetingParticle->SetVisibility(bIsTargeted);
 	}
 }
+
+int32 ASTSEnemyCharacter::GetPredictedHPChange(int32 IncomingDamage) const
+{
+	float FinalDamage = IncomingDamage;
+
+	// 내(적)가 취약 상태라면 대미지 1.5배
+	if (VulnerableStacks > 0)
+	{
+		FinalDamage = IncomingDamage * 1.5f;
+	}
+
+	int32 DamageToHealth = FMath::RoundToInt(FinalDamage);
+
+	// 내(적) 방어도(Block) 계산
+	if (CurrentBlock > 0)
+	{
+		if (CurrentBlock >= DamageToHealth) return 0; // 방어도로 다 막음 (피 안 달음)
+		else DamageToHealth -= CurrentBlock; // 방어도 뚫린 만큼만 피가 달음
+	}
+
+	return DamageToHealth; // 최종적으로 깎일 체력량 반환
+}
+
+void ASTSEnemyCharacter::UpdatePredictionUI(int32 IncomingDamage)
+{
+	int32 RealDamage = GetPredictedHPChange(IncomingDamage);
+	
+	ForwardShowPrediction(RealDamage, CurrentHealth, MaxHealth);
+}
+
+void ASTSEnemyCharacter::ClearPredictionUI()
+{
+	ForwardHidePrediction(CurrentHealth, MaxHealth);
+}

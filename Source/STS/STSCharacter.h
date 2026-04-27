@@ -18,6 +18,24 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerBlockChanged, int32, NewBlo
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerHealthChanged, int32, NewHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDeath);
 
+USTRUCT(BlueprintType)
+struct FActionCommand
+{
+	GENERATED_BODY()
+
+	FName ActionType;
+	bool bIsAoE;
+	AActor* TargetEnemy;
+	int32 Damage;
+	UAnimMontage* Montage;
+	class UNiagaraSystem* VFX;
+	FName StatusType;
+	int32 StatusAmount = 0;
+
+};
+
+
+
 UCLASS(config=Game)
 class ASTSCharacter : public ACharacter
 {
@@ -95,10 +113,22 @@ public:
 
 	// C++가 호출하면, 실제 이동과 애니메이션은 블루프린트에서 처리
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
-	void DashAndAttack(AActor* TargetActor);
+	void DashAndAttack(AActor* TargetActor, UAnimMontage* MontageToPlay, UNiagaraSystem* VFXToPlay);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void PlayInPlaceAnimation(UAnimMontage* MontageToPlay, UNiagaraSystem* VFXToPlay);
 	// 잠시 데미지를 보관할 변수
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
 	int32 PendingDamage;
+
+	// 상태이상을 기억할 주머니
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	FName PendingStatusType;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	int32 PendingStatusAmount;
+
+
 	AActor* CurrentTarget;
 
 	// AnimBP에서 호출할 실제 타격 함수
@@ -131,6 +161,54 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void HealPlayer(int32 HealAmount);
+
+	// 캐릭터가 광역 공격 중인지 기억하는 변수
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	bool bIsAoEAttack = false;
+
+	// 광역 공격 시 데미지를 입힐 타겟 리스트 
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	int32 PendingAoEDamage = 0;
+
+	// [완전 방어]
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class USoundBase* BlockSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class UNiagaraSystem* BlockVFX;
+
+	// [실드 파괴]
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class USoundBase* ShieldBreakSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class UNiagaraSystem* ShieldBreakVFX;
+
+	// [맨몸 피격]
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class USoundBase* FleshHitSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+	class UNiagaraSystem* BloodVFX;
+
+	//실드가 깨질 때 블루프린트로 신호를 보내는 함수입니다.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat|UI")
+	void OnShieldBroken();
+
+	// 액션 큐와 상태 변수
+	TArray<FActionCommand> ActionQueue;
+	bool bIsProcessingAction = false;
+
+	// 큐 관리 함수들
+	void EnqueueAction(const FActionCommand& NewAction);
+	void ProcessNextAction();
+
+	UFUNCTION(BlueprintCallable) 
+	void CompleteCurrentAction();
+
+	// 현재 진짜로 애니메이션이나 이동이 실행 중인지 확인하는 플래그
+	bool bIsExecutingAction = false;
+
 
 
 };

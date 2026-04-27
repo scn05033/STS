@@ -176,13 +176,13 @@ void ASTSGameMode::InitializeDeck()
         for (int i = 0; i < 5; ++i)
         {
             MasterDeck.Add(FName("STRIKE_BASIC"));
-            MasterDeck.Add(FName("DEFEND_BASIC")); 
+            //MasterDeck.Add(FName("DEFEND_BASIC")); 
 
             //MasterDeck.Add(FName("SHRUG_IT_OFF"));
 
-            // MasterDeck.Add(FName("BASH"));
+             MasterDeck.Add(FName("BASH"));
 
-            // MasterDeck.Add(FName("Cleave"));
+             MasterDeck.Add(FName("Cleave"));
 
 
             //MasterDeck.Add(FName("INFLAME"));
@@ -474,3 +474,10 @@ void ASTSGameMode::UpgradeCardInDeck(int32 CardIndex, FName UpgradedCardID)
     }
 }
 
+void ASTSGameMode::AddCardToDiscardPile(FName CardName)
+{
+    // 넘어온 카드 이름을 무덤 배열에 차곡차곡 쌓습니다.
+    DiscardPile.Add(CardName);
+
+    UE_LOG(LogTemp, Log, TEXT("무덤으로 데이터 들어옴: %s"), *CardName.ToString());
+}
