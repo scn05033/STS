@@ -7,6 +7,7 @@
 #include "Blueprint/DragDropOperation.h"
 #include "Components/HorizontalBox.h"
 #include "Components/TextBlock.h"
+#include "Components/RichTextBlock.h"
 #include "STSCardWidget.generated.h"
 
 class UTextBlock;
@@ -25,20 +26,20 @@ protected:
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* Cost;
 
-   // UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-   // class URichTextBlock* CardDescription;
+    UPROPERTY(meta = (BindWidget))
+    URichTextBlock* CardDescription;
 
     //UPROPERTY(meta = (BindWidget))
     //class UHorizontalBox* DescBox;
 
-    UPROPERTY(meta = (BindWidget))
+   /** UPROPERTY(meta = (BindWidget))
     class UTextBlock* LeftText;
 
     UPROPERTY(meta = (BindWidget))
     class UTextBlock* ValueText;
 
     UPROPERTY(meta = (BindWidget))
-    class UTextBlock* RightText;
+    class UTextBlock* RightText;*/
 
 
     UPROPERTY(meta = (BindWidget))
@@ -61,9 +62,8 @@ protected:
     virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 
     FCardData CurrentCardData;
-
+   // void NativeTick(const FGeometry& MyGeometry, float InDeltaTime);
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
-
     UPROPERTY()
     class ASTSEnemyCharacter* CurrentTargetEnemy;
 
@@ -97,4 +97,22 @@ public:
     // 타겟을 전달받고 텍스트를 갱신하는 함수
     UFUNCTION(BlueprintCallable, Category = "Card|Targeting")
     void UpdateTargetAndRefreshText(class ASTSEnemyCharacter* TargetEnemy);
+
+    // 드래그 비주얼로 사용할 래퍼 클래스
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Drag")
+    TSubclassOf<class UUserWidget> DragVisualClass;
+
+    // 드래그 시작 전, 원래 담겨있던 부모 패널(Canvas Panel 등)을 기억해둡니다.
+    UPROPERTY()
+    class UPanelWidget* OriginalParentPanel;
+
+    UPROPERTY()
+    class USTSCardWidget* FakeDragVisual;
+
+    //UFUNCTION()
+    //void OnFakeDragMoved(UDragDropOperation* Operation);
+
+    void UpdateDynamicDamageText(int32 CalculatedDamage);
+
+    USTSCardWidget* GetFakeDragVisual() const { return FakeDragVisual; }
 };

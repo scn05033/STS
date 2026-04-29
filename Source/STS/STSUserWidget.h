@@ -89,6 +89,10 @@ protected:
 	//AActor* CurrentHoveredEnemy;
 
 	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	// 현재 진행 중인 드래그 정보를 저장할 변수
+	UPROPERTY()
+	class UDragDropOperation* CurrentDragOp;
+
 public:
 	UFUNCTION(BlueprintCallable)
 	void AddCards(int32 NewCards);
@@ -168,6 +172,6 @@ public:
 
 	void HideAoEPrediction();
 
-	
+
 
 };

@@ -10,6 +10,7 @@
 #include "Components/TextBlock.h"
 #include "STSCardWidget.h"
 #include "STSGameMode.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Blueprint/SlateBlueprintLibrary.h"
 #include "STSEnemyCharacter.h"
 #include "Kismet/GameplayStatics.h"
@@ -353,6 +354,12 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
 
     // 카드 버리기 (기존 코드 유지)
     GM->AddToDiscardPile(DroppedCard->CardRowName);
+    // 뷰포트에 떠있는 가짜 카드 있으면 제거
+    if (USTSCardWidget* FakeCard = DroppedCard->GetFakeDragVisual())
+    {
+        FakeCard->RemoveFromParent();
+    }
+
     DroppedCard->RemoveFromParent();
     CreatedCards.Remove(DroppedCard);
     UpdateCardLayout();
@@ -386,7 +393,7 @@ void USTSUserWidget::ShowVictory()
 bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
     Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
-
+    CurrentDragOp = InOperation;
     USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
     if (!DraggedCard) return true;
 
@@ -395,16 +402,11 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
     // -------------------------------------------------------------------------
     // 드래그 비주얼에서 실제 카드 위젯 꺼내기
     // -------------------------------------------------------------------------
-    USTSCardWidget* VisualCard = Cast<USTSCardWidget>(InOperation->DefaultDragVisual);
-    if (!VisualCard)
+    USTSCardWidget* VisualCard = nullptr;
+    if (DraggedCard)
     {
-        if (UPanelWidget* DragWrapper = Cast<UPanelWidget>(InOperation->DefaultDragVisual))
-        {
-            if (DragWrapper->GetChildrenCount() > 0)
-            {
-                VisualCard = Cast<USTSCardWidget>(DragWrapper->GetChildAt(0));
-            }
-        }
+        // 원본 카드가 뷰포트에 띄워둔 가짜 카드를 직접 가져옵니다.
+        VisualCard = DraggedCard->GetFakeDragVisual();
     }
 
     // -------------------------------------------------------------------------
@@ -540,6 +542,58 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
         }
     }
 
+
+
+    
+
+    if (DraggedCard && DraggedCard->GetFakeDragVisual())
+    {
+        FVector2D TargetViewportPos;
+
+        // 카드의 실제 크기를 동적으로 가져옵니다 (실패 시 안전장치로 200x300 사용)
+        FVector2D CardSize = DraggedCard->GetFakeDragVisual()->GetDesiredSize();
+        if (CardSize.X == 0 || CardSize.Y == 0) CardSize = FVector2D(200.0f, 300.0f);
+
+        // 타겟팅 유무에 따라 카드를 띄울 추가 오프셋
+        FVector2D HoverOffset = FVector2D(0.0f, 0.0f);
+
+        if (CurrentHoveredEnemy)
+        {
+            // 타겟팅 중: 몬스터(Endpoint)를 추적
+            FVector TargetLoc = CurrentHoveredEnemy->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+
+            // 3D 월드 좌표를 UMG 전용 뷰포트 좌표로 한 방에 변환
+            bool bSuccess = UWidgetLayoutLibrary::ProjectWorldLocationToWidgetPosition(GetOwningPlayer(), TargetLoc, TargetViewportPos, false);
+
+            // 카메라 각도 등의 이유로 변환에 실패하면, 안전하게 마우스 좌표를 사용
+            if (!bSuccess)
+            {
+                FVector2D PixelPos;
+                USlateBlueprintLibrary::AbsoluteToViewport(this, InDragDropEvent.GetScreenSpacePosition(), PixelPos, TargetViewportPos);
+            }
+
+            // 몬스터 체력바를 가리지 않도록 카드를 화살표 끝보다 살짝 아래로 내립니다.
+           
+            HoverOffset = FVector2D(0.0f, 150.0f);
+        }
+        else
+        {
+            // 허공 드래그 중: 마우스를 추적
+            FVector2D PixelPos;
+            USlateBlueprintLibrary::AbsoluteToViewport(this, InDragDropEvent.GetScreenSpacePosition(), PixelPos, TargetViewportPos);
+
+            // 허공일 때는 마우스 정중앙에 두기 위해 오프셋을 0으로 둡니다.
+            HoverOffset = FVector2D(0.0f, 0.0f);
+        }
+
+        // =========================================================================
+        // 최종 적용: 타겟 좌표 - (카드 크기 절반) + (가림 방지용 오프셋)
+        // false를 넣어 엔진이 좌표를 이중으로 나누는 것을 막습니다.
+        // =========================================================================
+        FVector2D FinalPos = TargetViewportPos - (CardSize * 0.5f) + HoverOffset;
+        DraggedCard->GetFakeDragVisual()->SetPositionInViewport(FinalPos, false);
+    }
+
     return true;
 }
 
@@ -640,57 +694,55 @@ AActor* USTSUserWidget::GetEnemyUnderCursor(FVector2D ScreenPos)
 
 int32 USTSUserWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-    // 부모 함수의 기본 Paint 로직을 먼저 실행합니다.
+    // 부모 함수의 기본 Paint 로직 실행
     int32 NextLayerId = Super::NativePaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
     if (bIsTargeting)
     {
-        // 시작점과 끝점
+        // =========================================================================
+        // 시작점 (StartPoint): 카드가 있던 손패 중앙으로 고정
+        // =========================================================================
+        // 화면 정중앙(0.5f), 하단(0.9f)에 닻을 내립니다. 드래그해도 여긴 고정됩니다.
         FVector2D StartPoint = FVector2D(AllottedGeometry.GetLocalSize().X * 0.5f, AllottedGeometry.GetLocalSize().Y * 0.9f);
-       // FVector2D EndPoint = AllottedGeometry.AbsoluteToLocal(CurrentDragScreenPos);
-        FVector2D EndPoint;
 
-        //  자석 타겟팅 시각화: 누구를 따라갈 것인가?
+        // =========================================================================
+        // 도착점 (EndPoint): 적의 가슴팍 또는 마우스 커서
+        // =========================================================================
+        FVector2D EndPoint;
         if (CurrentHoveredEnemy)
         {
-            // 타겟팅된 적이 있다면? -> 화살표 끝을 몬스터의 몸통에 강제로 고정
+            // 타겟팅된 적이 있다면 적에게 자석처럼 달라붙음
             FVector2D EnemyScreenPos;
 
-            // 몬스터의 발끝이 아닌 가슴팍 쪽에 꽂히도록 Z축으로 100만큼 올려줍니다.
-            FVector TargetLocation = CurrentHoveredEnemy->GetActorLocation() + FVector(0.0f, 0.0f, 0.0f);
+            // 몬스터의 발밑이 아닌 몸통을 향하도록 Z축을 올려줌
+            FVector TargetLocation = CurrentHoveredEnemy->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
 
             if (GetOwningPlayer() && GetOwningPlayer()->ProjectWorldLocationToScreen(TargetLocation, EnemyScreenPos))
             {
-                // 몬스터의 화면 2D 좌표를 도화지 로컬 좌표로 변환
-               //EndPoint = AllottedGeometry.AbsoluteToLocal(EnemyScreenPos);
                 USlateBlueprintLibrary::ScreenToWidgetLocal((UObject*)this, AllottedGeometry, EnemyScreenPos, EndPoint);
             }
         }
         else
         {
-            // 타겟팅된 적이 없다면? -> 평소처럼 마우스 커서를 따라갑니다.
+            // 타겟팅된 적이 없다면 마우스 커서를 따라감
             EndPoint = AllottedGeometry.AbsoluteToLocal(CurrentDragScreenPos);
         }
 
-        // STS 스타일의 베지어 곡선(Bezier Curve) 계산
+        // =========================================================================
+        // 베지어 곡선 (Bezier Curve) 그리기
+        // =========================================================================
         TArray<FVector2D> Points;
 
-
-        // 슬레이 더 스파이어 스타일의 컨트롤 포인트
-        // ControlPoint1: 시작점(카드)에서 일단 하늘 위로 아주 높게(-800) 솟구치게 합니다.
+        // 하늘로 솟구쳤다가 꽂히게 만드는 제어점 (-800.0f)
         FVector2D ControlPoint1 = StartPoint + FVector2D(0.0f, -800.0f);
-
-        // ControlPoint2: 도착점(적)의 바로 위 하늘(-800)에서 수직으로 내리꽂히게 합니다.
         FVector2D ControlPoint2 = EndPoint + FVector2D(0.0f, -800.0f);
 
-        // 곡선을 30개의 짧은 직선으로 쪼개서 아주 부드럽게 만들기
         int32 Segments = 30;
         for (int32 i = 0; i <= Segments; i++)
         {
             float t = (float)i / Segments;
             float u = 1.0f - t;
 
-            // 3차 베지어 곡선 공식
             FVector2D Point = (u * u * u) * StartPoint +
                 3 * (u * u) * t * ControlPoint1 +
                 3 * u * (t * t) * ControlPoint2 +
@@ -699,31 +751,34 @@ int32 USTSUserWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Allot
             Points.Add(Point);
         }
 
-        // 선 그리기
         FSlateDrawElement::MakeLines(
             OutDrawElements, NextLayerId + 100, AllottedGeometry.ToPaintGeometry(),
             Points, ESlateDrawEffect::None, LineColor, true, LineThickness
         );
 
-        // 화살표 머리 그리기 (곡선의 마지막 각도를 따라감)
-        FVector2D Dir = (EndPoint - Points[Points.Num() - 2]).GetSafeNormal();
-        FVector2D RightDir = FVector2D(-Dir.Y, Dir.X);
+        // =========================================================================
+        // 화살표 머리 (Arrow Head): 도착점(EndPoint)에, 적을 향해 그리기!
+        // =========================================================================
+        if (Points.Num() >= 2)
+        {
+            // 곡선의 마지막 점(EndPoint)을 향해 날아오는 방향 벡터
+            FVector2D Dir = (EndPoint - Points[Points.Num() - 2]).GetSafeNormal();
+            FVector2D RightDir = FVector2D(-Dir.Y, Dir.X);
 
-        TArray<FVector2D> ArrowPoints;
-        ArrowPoints.Add(EndPoint);
-        ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) + (RightDir * ArrowHeadSize * 0.5f));
-        ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) - (RightDir * ArrowHeadSize * 0.5f));
-        ArrowPoints.Add(EndPoint);
+            TArray<FVector2D> ArrowPoints;
+            // 화살표 끝점을 정확히 몬스터/마우스 쪽에 둡니다! (거꾸로 되는 현상 해결)
+            ArrowPoints.Add(EndPoint);
+            ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) + (RightDir * ArrowHeadSize * 0.5f));
+            ArrowPoints.Add(EndPoint - (Dir * ArrowHeadSize) - (RightDir * ArrowHeadSize * 0.5f));
+            ArrowPoints.Add(EndPoint); // 삼각형 닫기
 
-        FSlateDrawElement::MakeLines(
-            OutDrawElements, NextLayerId + 100, AllottedGeometry.ToPaintGeometry(),
-            ArrowPoints, ESlateDrawEffect::None, LineColor, true, LineThickness
-        );
-
+            FSlateDrawElement::MakeLines(
+                OutDrawElements, NextLayerId + 100, AllottedGeometry.ToPaintGeometry(),
+                ArrowPoints, ESlateDrawEffect::None, LineColor, true, LineThickness
+            );
+        }
     }
-   
 
-    // 다음 레이어 ID를 반환합니다.
     return NextLayerId;
 }
 
@@ -796,4 +851,5 @@ void USTSUserWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragD
         UE_LOG(LogTemp, Warning, TEXT("광역 공격 예측 UI 기동!"));
     }
 }
+
 

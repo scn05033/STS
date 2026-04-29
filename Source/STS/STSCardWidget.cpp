@@ -9,8 +9,12 @@
 #include "STSGamemode.h"
 #include "Components/RichTextBlock.h"
 #include "Components/Overlay.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/SlateBlueprintLibrary.h"
+#include "Components/PanelWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
 
@@ -28,42 +32,24 @@ void USTSCardWidget::UpdateCardDesign(const FCardData& Data)
     {
         Cost->SetText(FText::AsNumber(Data.Cost));
     }
-   if (!LeftText || !ValueText || !RightText) return;
-   FString RawDesc = Data.CardDescription.ToString();
-   FString LStr, RStr;
-
-   // 공격 카드일 때 ({Damage} 기준)
-   if (RawDesc.Split(TEXT("{Damage}"), &LStr, &RStr))
+   if (CardDescription)
    {
-       LeftText->SetText(FText::FromString(LStr));
+       FString FinalDesc = Data.CardDescription.ToString();
 
-       ValueText->SetText(FText::AsNumber(Data.BaseDamage));
-       // 손패에 들어올 때부터 무조건 핫핑크로 칠해버립니다
-       //ValueText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.0f, 1.0f, 1.0f)));
+       // 공격 카드라면 {Damage}를 <White>숫자</>로 변경
+       FString DamageReplacement = FString::Printf(TEXT("<White>%d</>"), Data.BaseDamage);
+       FinalDesc = FinalDesc.Replace(TEXT("{Damage}"), *DamageReplacement);
 
-       RightText->SetText(FText::FromString(RStr));
+       // 방어 카드라면 {Block}을 <White>숫자</>로 변경
+       FString BlockReplacement = FString::Printf(TEXT("<White>%d</>"), Data.BaseBlock);
+       FinalDesc = FinalDesc.Replace(TEXT("{Block}"), *BlockReplacement);
+
+     
+     
+
+       // 최종 적용
+       CardDescription->SetText(FText::FromString(FinalDesc));
    }
-    // 방어 카드일 때 ({Block} 기준)
-    else if (RawDesc.Split(TEXT("{Block}"), &LStr, &RStr))
-    {
-        LeftText->SetText(FText::FromString(LStr));
-        LeftText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-        ValueText->SetText(FText::AsNumber(Data.BaseBlock));
-        ValueText->SetColorAndOpacity(FSlateColor(FLinearColor::White)); // 기본 하얀색
-        ValueText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-        RightText->SetText(FText::FromString(RStr));
-        RightText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    }
-    // 태그가 없는 일반 카드일 때 (가운데, 오른쪽 텍스트 숨김)
-    else
-    {
-        LeftText->SetText(FText::FromString(RawDesc));
-        LeftText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        ValueText->SetVisibility(ESlateVisibility::Collapsed);
-        RightText->SetVisibility(ESlateVisibility::Collapsed);
-    }
 
 
     if (CardArtImage && !Data.Art.IsNull())
@@ -175,41 +161,56 @@ void USTSCardWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPo
 {
     Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
 
-    // 드래그 오퍼레이션 생성
     UDragDropOperation* DragOp = NewObject<UDragDropOperation>();
-
-	// payload에 자기 자신(카드 위젯) 넣기 
     DragOp->Payload = this;
 
-	USTSCardWidget* DragVisualWidget = CreateWidget<USTSCardWidget>(GetOwningPlayer(), GetClass());
-   
-    if (DragVisualWidget) {
-        DragVisualWidget->UpdateCardDesign(CurrentCardData);
-		DragVisualWidget->SetRenderTransformAngle(0.0f); // 회전 초기화  
+    USTSCardWidget* DragVisualWidget = CreateWidget<USTSCardWidget>(GetOwningPlayer(), GetClass());
 
+    if (DragVisualWidget)
+    {
+        DragVisualWidget->UpdateCardDesign(CurrentCardData);
+        DragVisualWidget->SetRenderTransformAngle(0.0f);
         DragVisualWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 
-        DragVisualWidget->ForceLayoutPrepass();
+        // 뷰포트에 띄우고 크기 강제 고정
+        //DragVisualWidget->AddToViewport(999);
+        DragVisualWidget->AddToPlayerScreen(999);
+        FVector2D FixedSize = FVector2D(200.0f, 300.0f);
+        DragVisualWidget->SetDesiredSizeInViewport(FixedSize);
+
+        // 만든 가짜 위젯을 멤버 변수에 저장해둡니다.
+        FakeDragVisual = DragVisualWidget;
 
         
+        //복잡한 나눗셈 다 버리고, 엔진 내장 변환 함수를 씁니다.
+        FVector2D PixelPos, ViewportPos;
+        USlateBlueprintLibrary::AbsoluteToViewport(this, InMouseEvent.GetScreenSpacePosition(), PixelPos, ViewportPos);
 
-		DragOp->DefaultDragVisual = DragVisualWidget;
+        // 카드 크기의 절반을 빼서 정중앙에 정확히 꽂습니다.
+        FVector2D CardSize = FVector2D(200.0f, 300.0f);
+        FakeDragVisual->SetPositionInViewport(ViewportPos - (CardSize * 0.5f), false);
 
+       
+        DragOp->DefaultDragVisual = nullptr;
     }
-        
-    
 
-
-    // 마우스가 카드의 중앙을 잡게 함 
     DragOp->Pivot = EDragPivot::CenterCenter;
-
-    // 시스템에 전달
     OutOperation = DragOp;
 
-    this->SetVisibility(ESlateVisibility::Hidden);
-
-    UE_LOG(LogTemp, Log, TEXT("드래그 시작! 카드: %s"), *CardName->GetText().ToString());
+    this->SetRenderOpacity(0.0f);
+    this->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
+
+
+
+void USTSCardWidget::UpdateDynamicDamageText(int32 CalculatedDamage)
+{
+    // 리치 텍스트 포맷을 사용하여 대미지 숫자만 갱신
+    // "피해를 <Red>9</> 줍니다." 처럼 색상 태그를 넣으면 더 직관적입니다.
+    FString NewDesc = FString::Printf(TEXT("피해를 <%s>%d</> 줍니다."), TEXT("Default"), CalculatedDamage);
+    CardDescription->SetText(FText::FromString(NewDesc));
+}
+
 
 FText USTSCardWidget::GetCardNameText() const
 {
@@ -226,17 +227,17 @@ void USTSCardWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent
 {
     Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
 
-    // 드래그가 실패하거나 취소되면, 숨겨뒀던 나를 다시 보여줍니다.
-    this->SetVisibility(ESlateVisibility::Visible);
 
-    // 다시 나타날 때 ZOrder나 크기 초기화
-    SetRenderScale(FVector2D(1.0f, 1.0f));
-    if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
+    // 드래그가 취소되면 화면에 떠있던 가짜 카드를 파괴합니다.
+    if (FakeDragVisual)
     {
-        CanvasSlot->SetZOrder(0);
+        FakeDragVisual->RemoveFromParent();
+        FakeDragVisual = nullptr;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("드래그 취소됨. 원본 복귀."));
+    // 숨겼던 원본 카드를 다시 보이게 (손패 원복)
+    this->SetRenderOpacity(1.0f);
+    this->SetVisibility(ESlateVisibility::Visible);
 }
 
 
@@ -269,7 +270,8 @@ void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* Target
 {
     CurrentTargetEnemy = TargetEnemy;
     // 레고 조각 3개가 모두 잘 연결되었는지 확인
-    if (!LeftText || !ValueText || !RightText) return;
+    // 리치 텍스트 블록이 바인딩 안 되었으면 리턴
+    if (!CardDescription) return;
 
     //  내 상태 / 적 상태 가져오기
     int32 MyStrength = 0;
@@ -293,47 +295,27 @@ void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* Target
     // 최종 데미지 계산
     int32 FinalDamage = CalculateFinalDamage(CurrentCardData.BaseDamage, MyStrength, bIsTargetVuln, bAmIWeak);
 
-    // 텍스트 쪼개고 조립하기
-    FString RawDesc = CurrentCardData.CardDescription.ToString();
-    FString LStr, RStr;
+    // 원본 설명 텍스트 가져오기 (예: "피해를 {Damage} 줍니다.")
+    FString FinalDesc = CurrentCardData.CardDescription.ToString();
 
-    // 공격 카드일 때 "{Damage}"를 기준으로 양옆을 쪼갭니다
-    if (RawDesc.Split(TEXT("{Damage}"), &LStr, &RStr))
+    // 데미지 증감에 따라 리치 텍스트 색상 태그 결정
+    FString ColorTag = TEXT("White"); // 기본 하얀색
+    if (FinalDamage > CurrentCardData.BaseDamage)
     {
-        // 왼쪽 텍스트 세팅 ("피해를 ")
-        LeftText->SetText(FText::FromString(LStr));
-        LeftText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-        // 가운데 숫자 세팅 ("6" -> "4" 등)
-        ValueText->SetText(FText::AsNumber(FinalDamage));
-        ValueText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        ValueText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.0f, 1.0f, 1.0f)));
-        // 데미지에 따른 색상 칠하기
-        if (FinalDamage > CurrentCardData.BaseDamage) {
-            // 데미지 증가 (주황색)
-            ValueText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.5f, 0.0f)));
-        }
-        else if (FinalDamage < CurrentCardData.BaseDamage) {
-            // 약화 등으로 데미지 감소 (빨간색)
-            ValueText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.0f, 0.0f)));
-        }
-        else {
-            // 기본 상태 (하얀색)
-            ValueText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-        }
-
-        // 오른쪽 텍스트 세팅 (" 줍니다.")
-        RightText->SetText(FText::FromString(RStr));
-        RightText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        ColorTag = TEXT("Orange"); // 버프: 주황색
     }
-    else
+    else if (FinalDamage < CurrentCardData.BaseDamage)
     {
-        LeftText->SetText(FText::FromString(TEXT("오류: 데이터테이블에 {Damage}가 없음!")));
-        // 방어 카드이거나 타겟팅 태그가 없는 경우 (왼쪽 텍스트 하나만 써서 전체 출력)
-        LeftText->SetText(FText::FromString(RawDesc));
-        LeftText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-        ValueText->SetVisibility(ESlateVisibility::Collapsed); // 가운데 숫자 숨김
-        RightText->SetVisibility(ESlateVisibility::Collapsed); // 오른쪽 텍스트 숨김
+        ColorTag = TEXT("Red"); // 디버프: 빨간색
     }
+
+    // 변경할 문자열 만들기 (예: "<Orange>8</>")
+    FString DamageReplacement = FString::Printf(TEXT("<%s>%d</>"), *ColorTag, FinalDamage);
+
+    // "{Damage}" 글자를 방금 만든 색상 숫자로 통째로 바꿔치기
+    FinalDesc = FinalDesc.Replace(TEXT("{Damage}"), *DamageReplacement);
+
+    // 리치 텍스트 위젯에 한 방에 적용!
+    CardDescription->SetText(FText::FromString(FinalDesc));
+    
 }
