@@ -174,7 +174,7 @@ void USTSCardWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPo
         DragVisualWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
 
         // 뷰포트에 띄우고 크기 강제 고정
-        //DragVisualWidget->AddToViewport(999);
+        
         DragVisualWidget->AddToPlayerScreen(999);
         FVector2D FixedSize = FVector2D(200.0f, 300.0f);
         DragVisualWidget->SetDesiredSizeInViewport(FixedSize);
@@ -306,7 +306,7 @@ void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* Target
 
         UE_LOG(LogTemp, Warning, TEXT("타겟 적 이름: %s, 컴포넌트 취약 스택: %d"), *CurrentTargetEnemy->GetName(), VulStacks);
 
-        //bool bIsTargetVuln = (CurrentTargetEnemy->VulnerableStacks > 0);
+        
     }
 
 

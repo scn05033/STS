@@ -40,6 +40,5 @@ protected:
 	
 
 
-	//UPROPERTY(meta = (BindWidget))
-	//UTextBlock* IntentText;
+	
 };

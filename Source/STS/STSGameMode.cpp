@@ -37,11 +37,7 @@ void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
 	MainUIWidget = InUIWidget;
     TurnNumber = 1;
 
-    // 전투 시작 시 플레이어 체력바 꽉 채워주기
-    if (MainUIWidget)
-    {
-       // MainUIWidget->UpdatePlayerHP(CurrentHealth, MaxHealth);
-    }
+    
 
     InitializeDeck();
     StartPlayerTurn();

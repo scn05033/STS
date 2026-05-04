@@ -29,17 +29,7 @@ protected:
     UPROPERTY(meta = (BindWidget))
     URichTextBlock* CardDescription;
 
-    //UPROPERTY(meta = (BindWidget))
-    //class UHorizontalBox* DescBox;
-
-   /** UPROPERTY(meta = (BindWidget))
-    class UTextBlock* LeftText;
-
-    UPROPERTY(meta = (BindWidget))
-    class UTextBlock* ValueText;
-
-    UPROPERTY(meta = (BindWidget))
-    class UTextBlock* RightText;*/
+    
 
 
     UPROPERTY(meta = (BindWidget))
@@ -110,8 +100,7 @@ public:
     UPROPERTY()
     class USTSCardWidget* FakeDragVisual;
 
-    //UFUNCTION()
-    //void OnFakeDragMoved(UDragDropOperation* Operation);
+    
 
     void UpdateDynamicDamageText(int32 CalculatedDamage);
 

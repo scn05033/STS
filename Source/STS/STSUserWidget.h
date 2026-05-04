@@ -85,8 +85,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	FVector2D CurrentDragScreenPos;
 
-	//UPROPERTY(BlueprintReadOnly)
-	//AActor* CurrentHoveredEnemy;
+	
 
 	virtual void NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	// 현재 진행 중인 드래그 정보를 저장할 변수
@@ -118,9 +117,7 @@ public:
 	// 드래그 중일 때 매 프레임 실행되는 함수
 	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
-	// UI에서 선을 그릴 때 사용할 마우스/타겟 좌표 변수들
-	//UPROPERTY(BlueprintReadOnly)
-	//FVector2D CurrentDragScreenPos;
+	
 
 	UPROPERTY(BlueprintReadOnly)
 	class ASTSEnemyCharacter* CurrentHoveredEnemy;

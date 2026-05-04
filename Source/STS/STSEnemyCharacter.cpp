@@ -41,11 +41,7 @@ void ASTSEnemyCharacter::BeginPlay()
 	// 게임 시작하면 현재 체력을 최대 체력으로 설정
 	CurrentHealth = MaxHealth;
 
-	// 게임 시작 시 HP바 초기화
-	/**if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
-	{
-		HPWidget->UpdateHP(CurrentHealth, MaxHealth);
-	}*/
+	
 	UpdateHPUI(CurrentHealth, MaxHealth);
 	UpdateIntentUI(UIIntentType, CurrentIntentValue);
 }
@@ -53,8 +49,7 @@ void ASTSEnemyCharacter::BeginPlay()
 // 누군가 나를 때리면(ApplyDamage) 이 함수가 자동으로 실행됩니다.
 float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	// 부모 클래스의 기본 로직 수행 (필수)
-	//float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	
 
 	// 들어온 원래 데미지
 	float BaseDamage = DamageAmount;
@@ -118,8 +113,7 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 				CurrentBlock = 0; // 방어도는 완전히 박살남
 			}
 			UpdateBlockUI(CurrentBlock);
-			// 위젯에 깎인 방어도 업데이트 (TODO: HPWidget에 함수 추가 필요)
-			// if (HPWidget) HPWidget->UpdateBlock(CurrentBlock);
+			
 		}
 
 		// 체력(HP) 연산 (방어도를 뚫고 들어온 데미지만 적용) 
@@ -130,11 +124,7 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 			// 체력이 0 미만으로 내려가지 않게 막음
 			if (CurrentHealth < 0.0f) CurrentHealth = 0.0f;
 
-			// 위젯 업데이트 호출!
-			/**if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
-			{
-				HPWidget->UpdateHP(CurrentHealth, MaxHealth);
-			}*/
+			
 			UpdateHPUI(CurrentHealth, MaxHealth);
 
 			// 애니메이션 재생과 동시에 사운드 재생
@@ -199,13 +189,7 @@ void ASTSEnemyCharacter::DecideNextIntent()
 		CurrentIntentValue = 2;
 		UIIntentType = EIntentType::Debuff; // 약화 아이콘 
 	}
-	/**else if (RandomChoice == 3)
-	{
-		CurrentIntentType = TEXT("BuffStrength");
-		CurrentIntentValue = 2;
-		
-		UIIntentType = EIntentType::Buff;
-	}*/
+	
 	else if (RandomChoice == 3)
 	{
 		CurrentIntentType = TEXT("MultiHit");
@@ -241,10 +225,8 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	}
 	else if (CurrentIntentType == TEXT("Defend"))
 	{
-		//UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		AddBlock(CurrentIntentValue);
 		PlayAnimMontage(DefendMontage);
-		//UpdateBlockUI(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Debuff"))
 	{
@@ -323,7 +305,6 @@ void ASTSEnemyCharacter::AddBlock(int32 BlockAmount)
 	// UI 업데이트 
 	if (USTSEnemyHPWidget* HPWidget = Cast<USTSEnemyHPWidget>(HPWidgetComp->GetUserWidgetObject()))
 	{
-		// TODO: HPWidget에 방어도를 표시하는 함수를 미리 만들어두셨다면 여기서 호출
 		
 	}
 }
@@ -394,7 +375,7 @@ void ASTSEnemyCharacter::SetTargetingHighlight(bool bIsTargeted)
 		// 언리얼 엔진의 기본 외곽선 그리기 기능 (Custom Depth)을 켜고 끕니다.
 		GetMesh()->SetRenderCustomDepth(bIsTargeted);
 
-		// (선택) 만약 발밑에 빨간색 타겟팅 마크(Decal)나 파티클을 띄우고 싶다면 여기서 켜고 끕니다
+		// 만약 발밑에 빨간색 타겟팅 마크(Decal)나 파티클을 띄우고 싶다면 여기서 켜고 끕니다
 		// if (TargetingParticle) TargetingParticle->SetVisibility(bIsTargeted);
 	}
 }

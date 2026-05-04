@@ -137,11 +137,7 @@ void USTSUserWidget::NativeConstruct()
 
 void USTSUserWidget::OnTurnEndClicked()
 {
-    // 게임 모드를 찾아서 "턴 끝낼래요"라고 보고
-   // if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
-    //{
-     //   GM->EndPlayerTurn();
-    //}
+   
     
 	// 블루프린트에게 턴 종료 애니메이션 재생하라고 무전기 발신
     PlayTurnEndAnimations();
