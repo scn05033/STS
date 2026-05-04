@@ -6,7 +6,10 @@
 #include "Components/CanvasPanel.h"
 #include "Components/Widget.h"
 #include "CardDataStruct.h"
+#include "StatusEffectComponent.h"
 #include "STSEnemyCharacter.h"
+#include "STSGameInstance.h"
+#include "TimerManager.h"
 #include "Particles/ParticleSystem.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -23,16 +26,7 @@ ASTSGameMode::ASTSGameMode()
     // 기본값 설정
     CurrentTurnState = ETurnState::PlayerTurn;
 }
-/**void ASTSGameMode::BeginPlay()
-{
-    Super::BeginPlay();
 
-    // 에디터에서 클래스를 할당했다면 그것을 기본 폰으로 사용
-    if (CustomDefaultPawnClass != nullptr)
-    {
-        DefaultPawnClass = CustomDefaultPawnClass;
-    }
-}*/
 
 void ASTSGameMode::StartCombat(USTSUserWidget* InUIWidget)
 {
@@ -59,10 +53,21 @@ void ASTSGameMode::StartPlayerTurn()
     CurrentTurnState = ETurnState::PlayerTurn;
 
     CurrentEnergy = MaxEnergy;
-    //CurrentBlock = 0;
 
-    // 내 턴이 시작될 때 디버프가 1 줄어듭니다
-    DecreasePlayerStatusEffects();
+    ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+    if (PlayerChar)
+    {
+        // 플레이어 본체의 방어도를 0으로 초기화! (빨간 줄 해결)
+        PlayerChar->CurrentBlock = 0;
+
+        // 플레이어의 상태 이상 감소
+        if (UStatusEffectComponent* StatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+        {
+            StatusComp->DecreaseAllStatuses();
+        }
+    }
+
+    
 
     if (MainUIWidget)
     {
@@ -70,9 +75,13 @@ void ASTSGameMode::StartPlayerTurn()
 
         // UI 수치 초기화 갱신
         MainUIWidget->UpdateEnergyText(CurrentEnergy, MaxEnergy);
-       // MainUIWidget->UpdateBlockText(CurrentBlock);
-	}
 
+        // 방어도가 0이 된 것을 UI에 알려줍니다.
+        if (PlayerChar)
+        {
+            MainUIWidget->UpdateBlockText(PlayerChar->CurrentBlock);
+        }
+    }
     TArray<AActor*> FoundEnemies;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
 
@@ -85,7 +94,11 @@ void ASTSGameMode::StartPlayerTurn()
             {
                 Enemy->DecideNextIntent();
 
-                Enemy->DecreaseStatusEffects();
+                //적 상태 이상 감소 
+                if (UStatusEffectComponent* EnemyStatusComp = Enemy->FindComponentByClass<UStatusEffectComponent>())
+                {
+                    EnemyStatusComp->DecreaseAllStatuses();
+                }
             }
         }
     }
@@ -126,6 +139,7 @@ void ASTSGameMode::StartEnemyTurn()
                     if (Enemy->ActorHasTag(FName("CurrentBattle")))
                     {
                         Enemy->CurrentBlock = 0;
+                        Enemy->OnBlockChanged.Broadcast(Enemy->CurrentBlock);
                         Enemy->ExecuteIntent(this); 
                     }
                 }
@@ -178,14 +192,14 @@ void ASTSGameMode::InitializeDeck()
             MasterDeck.Add(FName("STRIKE_BASIC"));
             //MasterDeck.Add(FName("DEFEND_BASIC")); 
 
-            //MasterDeck.Add(FName("SHRUG_IT_OFF"));
+            MasterDeck.Add(FName("SHRUG_IT_OFF"));
 
-             MasterDeck.Add(FName("BASH"));
+             //MasterDeck.Add(FName("BASH"));
 
-             MasterDeck.Add(FName("Cleave"));
+             //MasterDeck.Add(FName("Cleave"));
 
 
-            //MasterDeck.Add(FName("INFLAME"));
+            MasterDeck.Add(FName("INFLAME"));
             //MasterDeck.Add(FName("TWIN_STRIKE"));
             //MasterDeck.Add(FName("SEEING_RED"));
         }
@@ -251,9 +265,19 @@ FName ASTSGameMode::DrawCard()
 void ASTSGameMode::AddStrength(int32 Amount)
 {
     CurrentStrength += Amount;
-
+   
     // 로그로 잘 올라갔는지 확인!
     UE_LOG(LogTemp, Warning, TEXT("힘 증가! 현재 힘: %d"), CurrentStrength);
+
+    // 플레이어 캐릭터를 찾아서 신형 컴포넌트에 상태 이상을 적용
+    if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(this, 0))
+    {
+        if (UStatusEffectComponent* StatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+        {
+            // 신형 컴포넌트의 AddStatusEffect를 호출
+            StatusComp->AddStatusEffect(EStatusEffectType::Strength, Amount);
+        }
+    }
 }
 
 void ASTSGameMode::CheckVictory()
@@ -279,16 +303,57 @@ void ASTSGameMode::CheckVictory()
     {
         UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 전투 승리!"));
         UE_LOG(LogTemp, Error, TEXT("[디버그] 전투 종료 직후 MasterDeck 개수: %d"), MasterDeck.Num());
-        // 지금이 보스 층(5층)이거나 그 이상이라면 엔딩 화면
-        if (CurrentFloor >= BossFloor)
+       
+        if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(this, 0))
         {
-            MainUIWidget->ShowGameClear();
+            if (UStatusEffectComponent* StatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+            {
+                // 모든 상태 이상 싹 날리기
+                StatusComp->ClearAllStatusEffects();
+            }
         }
-        else
+        if (USTSGameInstance* GI = Cast<USTSGameInstance>(GetGameInstance()))
         {
-            // 일반 층이라면? -> 평소처럼 카드 보상 화면!
-            MainUIWidget->ShowVictory();
+            // 전투 BGM을 1.5초 동안 서서히 끕니다.
+            GI->StopBackgroundMusic(1.5f);
+
+            if (CurrentFloor >= BossFloor)
+            {
+                // [보스 층 - 엔딩]
+                MainUIWidget->ShowGameClear();
+                // 1.5초 뒤에 엔딩 BGM 재생
+                GetWorldTimerManager().SetTimer(BGMTimerHandle, this, &ASTSGameMode::PlayEndingBGM, 1.5f, false);
+            }
+            else
+            {
+                //  [일반 층 - 다음 층으로]
+                MainUIWidget->ShowVictory();
+                // 1.5초 뒤에 원래 맵 BGM 재생
+                GetWorldTimerManager().SetTimer(BGMTimerHandle, this, &ASTSGameMode::ResumeMapBGM, 1.5f, false);
+            }
         }
+    }
+}
+
+// 실행될 BGM 복구 함수 구현
+void ASTSGameMode::ResumeMapBGM()
+{
+    if (USTSGameInstance* GI = Cast<USTSGameInstance>(GetGameInstance()))
+    {
+        // DefaultMapBGM 파일이 에디터에서 제대로 세팅되어 있다면 재생!
+        if (DefaultBGM)
+        {
+            GI->PlayBackgroundMusic(DefaultBGM);
+        }
+    }
+}
+
+// 새로 추가된 엔딩 BGM 재생 함수
+void ASTSGameMode::PlayEndingBGM()
+{
+    if (USTSGameInstance* GI = Cast<USTSGameInstance>(GetGameInstance()))
+    {
+        if (EndingBGM) GI->PlayBackgroundMusic(EndingBGM);
     }
 }
 
@@ -346,19 +411,10 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
 
             AActor* Campfire = GetWorld()->SpawnActor<AActor>(CampfireClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
         }
-        // 스폰이 진짜로 성공했는지 확인
-       /*if (Campfire)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("모닥불 스폰 완벽 성공!"));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("에러: 모닥불 스폰 함수가 실패했습니다! "));
-        }
-        */
+       
         if (AnvilClassToSpawn)
         {
-            FVector AnvilLoc(-9420.0f, 4640.0f, 590.0f); // Y축을 500으로 (오른쪽)
+            FVector AnvilLoc(-9420.0f, 4640.0f, 400.0f); // Y축을 500으로 (오른쪽)
             GetWorld()->SpawnActor<AActor>(AnvilClassToSpawn, AnvilLoc, FRotator::ZeroRotator, SpawnParams);
         }
 
@@ -370,7 +426,7 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
 
     
 
-    FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
+    FVector SpawnLocation(-9000.0f, 5140.0f, 520.0f);
 
     if (CurrentFloor == BossFloor)
     {
@@ -387,8 +443,7 @@ void ASTSGameMode::GoToNextNode(FName NodeType)
     {
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        //FVector SpawnLocation(-9420.0f, 5140.0f, 590.0f);
-        //FRotator SpawnRotation(0.0f, -180.0f, 0.0f);
+        
 
         APawn* PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
         FRotator SpawnRotation = FRotator::ZeroRotator;

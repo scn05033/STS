@@ -14,6 +14,7 @@
 #include "Components/SizeBox.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/SlateBlueprintLibrary.h"
+#include "StatusEffectComponent.h"
 #include "Components/PanelWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 
@@ -269,24 +270,41 @@ int32 USTSCardWidget::CalculateFinalDamage(int32 InBaseDamage, int32 InPlayerStr
 void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* TargetEnemy)
 {
     CurrentTargetEnemy = TargetEnemy;
-    // 레고 조각 3개가 모두 잘 연결되었는지 확인
+   
     // 리치 텍스트 블록이 바인딩 안 되었으면 리턴
     if (!CardDescription) return;
 
     //  내 상태 / 적 상태 가져오기
     int32 MyStrength = 0;
     bool bAmIWeak = false;
+    if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
+    {
+        if (UStatusEffectComponent* PlayerStatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+        {
+            // 내 컴포넌트 맵에서 약화(Weak) 스택을 찾습니다.
+            int32 WeakStacks = PlayerStatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Weak);
+            bAmIWeak = (WeakStacks > 0);
+        }
+    }
     if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
     {
         MyStrength = GM->CurrentStrength;
-        bAmIWeak = (GM->WeakStacks > 0);
     }
-    bool bIsTargetVuln = (CurrentTargetEnemy && CurrentTargetEnemy->VulnerableStacks > 0);
-
+    //bool bIsTargetVuln = (CurrentTargetEnemy && CurrentTargetEnemy->VulnerableStacks > 0);
+    bool bIsTargetVuln = false;
+    int32 VulStacks = 0; // 로그용 변수
     if (CurrentTargetEnemy)
     {
         
-        UE_LOG(LogTemp, Warning, TEXT("타겟 적 이름: %s, 취약 스택: %d"), *CurrentTargetEnemy->GetName(), CurrentTargetEnemy->VulnerableStacks);
+        // 적이 상태 이상 컴포넌트를 달고 있는지 확인
+        if (UStatusEffectComponent* StatusComp = CurrentTargetEnemy->FindComponentByClass<UStatusEffectComponent>())
+        {
+            // 컴포넌트의 Map에서 취약 수치를 꺼내옵니다.
+            VulStacks = StatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Vulnerable);
+            bIsTargetVuln = (VulStacks > 0);
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("타겟 적 이름: %s, 컴포넌트 취약 스택: %d"), *CurrentTargetEnemy->GetName(), VulStacks);
 
         //bool bIsTargetVuln = (CurrentTargetEnemy->VulnerableStacks > 0);
     }

@@ -148,8 +148,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "CardData")
     void AddCardToDiscardPile(FName CardName);
 
+    // 전투가 끝난 뒤 돌아갈 기본 맵 BGM
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM")
+    USoundBase* DefaultBGM;
+
+    // 엔딩 BGM 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM")
+    USoundBase* EndingBGM;
+
 protected:
     // 실제 상태 변경 로직
+    UFUNCTION(BlueprintCallable, Category = "Battle")
     void StartPlayerTurn();
     void StartEnemyTurn();
 
@@ -175,9 +184,12 @@ protected:
     UFUNCTION(BlueprintPure, Category = "CardData")
     int32 GetDiscardCount() const { return DiscardPile.Num(); }
   
-   
+    // 타이머 핸들과 BGM 복구 함수
+    FTimerHandle BGMTimerHandle;
+    void ResumeMapBGM();
 
-   
+   // 엔딩 BGM을 재생할 함수 추가
+        void PlayEndingBGM();
 };
 
 

@@ -93,6 +93,8 @@ protected:
 	UPROPERTY()
 	class UDragDropOperation* CurrentDragOp;
 
+	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
 public:
 	UFUNCTION(BlueprintCallable)
 	void AddCards(int32 NewCards);
@@ -100,13 +102,17 @@ public:
 	
 	void EmptyHand();
 	void UpdateEnergyText(int32 CurrentEnergy, int32 MaxEnergy);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
 	void UpdateBlockText(int32 CurrentBlock);
 
 	// 플레이어 체력 갱신 함수
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void UpdatePlayerHP(int32 CurrentHP, int32 MaxHP);
-
+	UPROPERTY(meta = (BindWidget),BlueprintReadWrite)
+	class UCanvasPanel* CombatUIPanel;
 	// 게임 오버 연출 함수
+	UFUNCTION()
 	void ShowGameOver();
 
 	// 드래그 중일 때 매 프레임 실행되는 함수
@@ -172,6 +178,7 @@ public:
 
 	void HideAoEPrediction();
 
-
-
+	
+	UPROPERTY()
+	class USTSCardWidget* DraggedCard = nullptr;
 };

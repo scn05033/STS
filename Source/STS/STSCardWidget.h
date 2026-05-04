@@ -69,6 +69,7 @@ protected:
 
 public:
     // 데이터를 받아서 UI를 갱신하는 함수
+    UFUNCTION(BlueprintCallable)
     void UpdateCardDesign(const FCardData& Data);
 
     FText GetCardNameText() const;

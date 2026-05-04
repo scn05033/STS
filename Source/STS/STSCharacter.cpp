@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "STSCharacter.h"
+#include "STSUserWidget.h"
 #include "Engine/LocalPlayer.h"
 #include "STSEnemyCharacter.h"
 #include "Camera/CameraComponent.h"
@@ -12,6 +13,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
+#include "StatusEffectComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/GameplayStatics.h"
 #include "InputActionValue.h"
@@ -155,61 +157,99 @@ void ASTSCharacter::PlayHitReactAnim()
 
 void ASTSCharacter::ExecuteHit()
 {
+	// 플레이어(나)의 약화 상태 확인 및 최종 데미지 계산
+	float FinalActualDamage = PendingDamage;
+
+	// 나에게 컴포넌트가 있는지, 그리고 약화 스택이 있는지 물어봅니다
+	if (UStatusEffectComponent* MyStatusComp = FindComponentByClass<UStatusEffectComponent>())
+	{
+		int32 WeakStacks = MyStatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Weak);
+		if (WeakStacks > 0)
+		{
+			// 슬레이 더 스파이어 기준 약화는 데미지 25% 감소 (0.75배)
+			FinalActualDamage *= 0.75f;
+			UE_LOG(LogTemp, Warning, TEXT("[약화 적용] 플레이어가 약화 상태라 데미지가 %f 로 감소했습니다!"), FinalActualDamage);
+		}
+	}
+
 	// 광역 공격일 경우
-	if (bIsAoEAttack && PendingDamage > 0)
+	if (bIsAoEAttack && FinalActualDamage > 0)
 	{
 		TArray<AActor*> FoundEnemies;
-
-		// 태그(Tag) 검사를 빼버리고 맵에 있는 '적 캐릭터'는 무조건 다 가져옵니다 (가장 확실함)
+		// 태그 검사 없이 맵의 모든 적을 가져옴
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
 
 		for (AActor* Actor : FoundEnemies)
 		{
 			if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
 			{
+				// 깎인 최종 데미지로 때리기
 				UGameplayStatics::ApplyDamage(
 					Enemy,
-					PendingDamage,
+					FinalActualDamage,
 					GetController(),
 					this,
 					UDamageType::StaticClass()
 				);
-				if (PendingStatusAmount > 0 && PendingStatusType == FName("Vulnerable"))
+
+				// 광역 공격의 상태 이상
+				if (PendingStatusAmount > 0)
 				{
-					Enemy->VulnerableStacks += PendingStatusAmount;
-					UE_LOG(LogTemp, Warning, TEXT("[광역] %s에게 취약 %d 스택 부여! (현재: %d)"), *Enemy->GetName(), PendingStatusAmount, Enemy->VulnerableStacks);
+					EStatusEffectType TypeToApply = EStatusEffectType::None;
+					if (PendingStatusType == FName("Vulnerable")) TypeToApply = EStatusEffectType::Vulnerable;
+					else if (PendingStatusType == FName("Weak")) TypeToApply = EStatusEffectType::Weak; // 추후 광역 약화를 위해 추가
+
+					if (TypeToApply != EStatusEffectType::None)
+					{
+						if (UStatusEffectComponent* StatusComp = Enemy->FindComponentByClass<UStatusEffectComponent>())
+						{
+							StatusComp->AddStatusEffect(TypeToApply, PendingStatusAmount);
+							UE_LOG(LogTemp, Warning, TEXT("[광역] %s 컴포넌트에 %s %d 스택 부여!"), *Enemy->GetName(), *PendingStatusType.ToString(), PendingStatusAmount);
+						}
+					}
 				}
 			}
 		}
-
-		UE_LOG(LogTemp, Warning, TEXT("모든 적에게 %d 데미지를 입혔습니다!"), PendingDamage);
+		UE_LOG(LogTemp, Warning, TEXT("모든 적에게 %f 데미지를 입혔습니다!"), FinalActualDamage);
 	}
 
 	// 단일 공격일 경우
-	else if (CurrentTarget && PendingDamage > 0)
+	else if (CurrentTarget && FinalActualDamage > 0)
 	{
+		// 깎인 최종 데미지로 때리기
 		UGameplayStatics::ApplyDamage(
 			CurrentTarget,
-			PendingDamage,
+			FinalActualDamage,
 			GetController(),
 			this,
 			UDamageType::StaticClass()
 		);
+
 		if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(CurrentTarget))
 		{
-			if (PendingStatusAmount > 0 && PendingStatusType == FName("Vulnerable"))
+			if (PendingStatusAmount > 0)
 			{
-				Enemy->VulnerableStacks += PendingStatusAmount;
-				UE_LOG(LogTemp, Warning, TEXT("[단일] %s에게 취약 %d 스택 부여! (현재: %d)"), *Enemy->GetName(), PendingStatusAmount, Enemy->VulnerableStacks);
+				EStatusEffectType TypeToApply = EStatusEffectType::None;
+				if (PendingStatusType == FName("Vulnerable")) TypeToApply = EStatusEffectType::Vulnerable;
+				else if (PendingStatusType == FName("Weak")) TypeToApply = EStatusEffectType::Weak;
+
+				if (TypeToApply != EStatusEffectType::None)
+				{
+					if (UStatusEffectComponent* StatusComp = Enemy->FindComponentByClass<UStatusEffectComponent>())
+					{
+						StatusComp->AddStatusEffect(TypeToApply, PendingStatusAmount);
+						UE_LOG(LogTemp, Warning, TEXT("[단일] %s 컴포넌트에 %s %d 스택 부여!"), *Enemy->GetName(), *PendingStatusType.ToString(), PendingStatusAmount);
+					}
+				}
 			}
 		}
-
-		UE_LOG(LogTemp, Warning, TEXT(" 적에게 %d 데미지를 입혔습니다."), PendingDamage);
+		UE_LOG(LogTemp, Warning, TEXT("적에게 %f 데미지를 입혔습니다."), FinalActualDamage);
+		
 	}
+
+	// 초기화
 	PendingStatusAmount = 0;
 	PendingStatusType = NAME_None;
-
-	
 }
 
 void ASTSCharacter::AddBlock(int32 Amount)
@@ -299,6 +339,7 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 		{
 			//UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
 			// 게임 오버 방송
+			UE_LOG(LogTemp, Error, TEXT("==== 1. 플레이어 체력 0! 방송 시작 ===="));
 			OnPlayerDeath.Broadcast();
 		}
 	}
@@ -381,8 +422,10 @@ void ASTSCharacter::ProcessNextAction()
 	}
 	else
 	{
+
+		PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
 		// 애니메이션이 없는 기타 카드라면 즉시 넘김
-		CompleteCurrentAction();
+		//CompleteCurrentAction();
 	}
 }
 

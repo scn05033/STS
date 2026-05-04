@@ -13,7 +13,8 @@ enum class EIntentType : uint8
 	Attack  UMETA(DisplayName = "공격"),
 	Defend  UMETA(DisplayName = "방어"),
 	Debuff  UMETA(DisplayName = "약화"),
-	Buff  UMETA(DisplayName = "강화")
+	Buff  UMETA(DisplayName = "강화"),
+	MultiHit  UMETA(DisplayName = "강공")
 };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyBlockChanged, int32, NewBlock);
 
@@ -100,8 +101,28 @@ public:
 	UAnimMontage* HitReactMontage;
 	USoundBase* HitSoundAsset;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Enemy Animation")
+	UAnimMontage* DefendMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Enemy Animation")
+	UAnimMontage* DebuffMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Enemy Animation")
+	UAnimMontage* BuffMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Enemy Animation")
+	UAnimMontage* MultiHitMontage;
+
+	// 몽타주 노티파이에서 호출할 실제 타격 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void DealSingleHitDamage();
+
+
+	EIntentType UIIntentType;
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void DashAndAttack(AActor* TargetActor);
+
+	
 
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ExecuteHit();
@@ -147,7 +168,9 @@ public:
 	void ClearPredictionUI();
 
 	
-
+	 //데미지 계산이 끝나면 블루프린트의 대시 연출을 실행하라고 지시하는 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void ExecuteDashAndMultiHit(AActor* TargetPlayer);
 
 
 protected:

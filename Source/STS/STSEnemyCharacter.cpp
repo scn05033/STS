@@ -3,6 +3,7 @@
 #include "STSCharacter.h"
 #include "STSGameMode.h"
 #include "Sound/SoundBase.h"
+#include "StatusEffectComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/WidgetComponent.h"
 
@@ -46,7 +47,7 @@ void ASTSEnemyCharacter::BeginPlay()
 		HPWidget->UpdateHP(CurrentHealth, MaxHealth);
 	}*/
 	UpdateHPUI(CurrentHealth, MaxHealth);
-	//UpdateIntentUI(EIntentType::Attack, 15);
+	UpdateIntentUI(UIIntentType, CurrentIntentValue);
 }
 
 // 누군가 나를 때리면(ApplyDamage) 이 함수가 자동으로 실행됩니다.
@@ -67,13 +68,21 @@ float ASTSEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	}
 	float FinalDamage = BaseDamage;
 
-	// [상태이상] 취약(Vulnerable) 스택이 0보다 크면 데미지 1.5배 (반올림)
-	if (VulnerableStacks > 0)
+	// 상태 이상 컴포넌트에게 물어보기
+	if (UStatusEffectComponent* StatusComp = FindComponentByClass<UStatusEffectComponent>())
 	{
-		FinalDamage = BaseDamage * 1.5f;
-		UE_LOG(LogTemp, Warning, TEXT("[취약 발동] 데미지가 %f 에서 %f 로 증폭되었습니다!"), BaseDamage, FinalDamage);
+		int32 VulStacks = StatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Vulnerable);
+
+		if (VulStacks > 0)
+		{
+			// 여기서 BaseDamage 자체를 1.5배로 곱합니다.
+			BaseDamage *= 1.5f;
+			UE_LOG(LogTemp, Warning, TEXT("컴포넌트 취약 적용! 1.5배 증폭된 데미지: %f"), BaseDamage);
+		}
 	}
-	float ActualDamage = Super::TakeDamage(FinalDamage, DamageEvent, EventInstigator, DamageCauser);
+
+	// 계산이 전부 끝난 최종 'BaseDamage'를 넘겨줍니다.
+	float ActualDamage = Super::TakeDamage(BaseDamage, DamageEvent, EventInstigator, DamageCauser);
 
 
 
@@ -159,7 +168,7 @@ void ASTSEnemyCharacter::DecideNextIntent()
 	// 보스일 경우 5개의 패턴을 뽑음.
 	if (bIsBoss)
 	{
-		RandomChoice = FMath::RandRange(0, 4);
+		RandomChoice = FMath::RandRange(0, 3);
 	}
 	else
 	{
@@ -170,7 +179,7 @@ void ASTSEnemyCharacter::DecideNextIntent()
 	CurrentHitCount = 1; // 매 턴마다 기본 타수를 1로 초기화 (중요!)
 
 	// UI에 쏴줄 'Enum 타입'을 저장할 임시 변수
-	EIntentType UIIntentType = EIntentType::Attack;
+	UIIntentType = EIntentType::Attack;
 
 	if (RandomChoice == 0)
 	{
@@ -190,19 +199,19 @@ void ASTSEnemyCharacter::DecideNextIntent()
 		CurrentIntentValue = 2;
 		UIIntentType = EIntentType::Debuff; // 약화 아이콘 
 	}
-	else if (RandomChoice == 3)
+	/**else if (RandomChoice == 3)
 	{
 		CurrentIntentType = TEXT("BuffStrength");
 		CurrentIntentValue = 2;
 		
 		UIIntentType = EIntentType::Buff;
-	}
-	else if (RandomChoice == 4)
+	}*/
+	else if (RandomChoice == 3)
 	{
 		CurrentIntentType = TEXT("MultiHit");
 		CurrentIntentValue = 4; // 1타당 기본 데미지
 		CurrentHitCount = 3;    // 3번 연속으로 때림
-		UIIntentType = EIntentType::Attack; // 연타도 일단 공격 아이콘을 띄움
+		UIIntentType = EIntentType::MultiHit; // 연타도 일단 공격 아이콘을 띄움
 	}
 
 	// UI 업데이트 이벤트 호출 
@@ -234,37 +243,60 @@ void ASTSEnemyCharacter::ExecuteIntent(ASTSGameMode* GM)
 	{
 		//UE_LOG(LogTemp, Warning, TEXT(" 적이 %d의 방어도를 올립니다! (적 방어도 로직은 추후 추가)"), CurrentIntentValue);
 		AddBlock(CurrentIntentValue);
+		PlayAnimMontage(DefendMontage);
 		//UpdateBlockUI(CurrentIntentValue);
 	}
 	else if (CurrentIntentType == TEXT("Debuff"))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("적이 플레이어에게 기분 나쁜 저주를 겁니다!"));
-
-		if (GM)
+		PlayAnimMontage(DebuffMontage);
+		// 현재 월드의 플레이어 캐릭터를 찾아옵니다.
+		if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(this, 0))
 		{
-			// 플레이어에게 약화 2스택을 줍니다.
-			GM->AddWeak(CurrentIntentValue);
+			// 플레이어에게 '상태 이상 컴포넌트'가 달려있는지 물어봅니다!
+			if (UStatusEffectComponent* StatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+			{
+				// 찾았다면, 컴포넌트에게 약화(Weak)를 걸라고 명령합니다.
+				StatusComp->AddStatusEffect(EStatusEffectType::Weak, CurrentIntentValue);
+
+				UE_LOG(LogTemp, Warning, TEXT("플레이어에게 약화 %d 스택 부여 성공!"), CurrentIntentValue);
+			}
 		}
 	}
-	else if (CurrentIntentType == TEXT("BuffStrength"))
+	else if (CurrentIntentType == TEXT("Strength"))
 	{
+		PlayAnimMontage(BuffMontage);
 		// 보스 추가 패턴 A: 힘 획득
 		CurrentStrength += CurrentIntentValue;
+
 		UE_LOG(LogTemp, Warning, TEXT(" [보스 패턴] 보스가 포효하며 힘을 %d 얻었습니다! (현재 힘: %d)"), CurrentIntentValue, CurrentStrength);
 	}
 	else if (CurrentIntentType == TEXT("MultiHit"))
 	{
-		// 보스 추가 패턴 B: 연속 타격 실행
-		int32 FinalDamage = CurrentIntentValue + CurrentStrength; // 1타당 데미지 계산
-		UE_LOG(LogTemp, Warning, TEXT(" [보스 패턴] 보스가 %d의 데미지로 %d번 연속 공격합니다!"), FinalDamage, CurrentHitCount);
+		// 총 데미지가 아니라 '1타당 데미지'를 계산해서 변수에 "기억"만 해둡니다.
+		int32 DamagePerHit = CurrentIntentValue + CurrentStrength;
+		this->PendingDamage = DamagePerHit;
 
-		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+		UE_LOG(LogTemp, Warning, TEXT("[보스 패턴] 3연타 공격 준비! 1타당 데미지: %d"), PendingDamage);
+
+		// 플레이어 캐릭터를 찾아서 블루프린트 이벤트로 신호를 보냅니다.
+		if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(this, 0))
 		{
-			for (int i = 0; i < CurrentHitCount; i++)
-			{
-				PlayerChar->TakePlayerDamage(FinalDamage);
-			}
+			ExecuteDashAndMultiHit(PlayerChar); 
 		}
+	}
+}
+
+// 노티파이가 불릴 때마다 실행될 함수 구현
+void ASTSEnemyCharacter::DealSingleHitDamage()
+{
+	// ExecuteIntent에서 기억해둔 PendingDamage를 사용해 진짜로 때립니다.
+	if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+	{
+		PlayerChar->TakePlayerDamage(PendingDamage);
+		UE_LOG(LogTemp, Warning, TEXT("[멀티 히트 적중] 플레이어에게 %d 데미지 적용!"), PendingDamage);
+
+		
 	}
 }
 
@@ -371,18 +403,26 @@ int32 ASTSEnemyCharacter::GetPredictedHPChange(int32 IncomingDamage) const
 {
 	float FinalDamage = IncomingDamage;
 
+	// 컴포넌트에서 취약 스택을 안전하게(const) 가져오기
+	int32 VulStacks = 0;
+	if (const UStatusEffectComponent* StatusComp = FindComponentByClass<UStatusEffectComponent>())
+	{
+		VulStacks = StatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Vulnerable);
+	}
+
 	// 내(적)가 취약 상태라면 대미지 1.5배
-	if (VulnerableStacks > 0)
+	if (VulStacks > 0)
 	{
 		FinalDamage = IncomingDamage * 1.5f;
 	}
 
 	int32 DamageToHealth = FMath::RoundToInt(FinalDamage);
 
-	// 내(적) 방어도(Block) 계산
+	// 내(적) 방어도(Block) 계산 
+	
 	if (CurrentBlock > 0)
 	{
-		if (CurrentBlock >= DamageToHealth) return 0; // 방어도로 다 막음 (피 안 달음)
+		if (CurrentBlock >= DamageToHealth) return 0; // 방어도로 다 막음
 		else DamageToHealth -= CurrentBlock; // 방어도 뚫린 만큼만 피가 달음
 	}
 
@@ -391,8 +431,29 @@ int32 ASTSEnemyCharacter::GetPredictedHPChange(int32 IncomingDamage) const
 
 void ASTSEnemyCharacter::UpdatePredictionUI(int32 IncomingDamage)
 {
-	int32 RealDamage = GetPredictedHPChange(IncomingDamage);
+	float PlayerOutputDamage = IncomingDamage;
+
+	// 공격자(플레이어)의 '상태 이상 컴포넌트'를 찾아옵니다.
+	if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
+	{
+		if (UStatusEffectComponent* PlayerStatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
+		{
+			// 내가 약화(Weak) 상태인지 확인
+			int32 WeakStacks = PlayerStatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Weak);
+			if (WeakStacks > 0)
+			{
+				// 약화 상태라면 데미지를 0.75배로 깎습니다.
+				PlayerOutputDamage *= 0.75f;
+			}
+		}
+	}
+
 	
+
+	// 플레이어의 약화가 적용된 데미지(PlayerOutputDamage)를 적의 예측 함수에 넘겨줍니다
+	int32 RealDamage = GetPredictedHPChange(FMath::RoundToInt(PlayerOutputDamage));
+
+	// 최종 체력바 UI 갱신
 	ForwardShowPrediction(RealDamage, CurrentHealth, MaxHealth);
 }
 

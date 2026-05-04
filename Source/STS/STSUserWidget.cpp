@@ -122,7 +122,12 @@ void USTSUserWidget::NativeConstruct()
     {
         TurnEndButton->OnClicked.AddDynamic(this, &USTSUserWidget::OnTurnEndClicked);
     }
-
+    // 현재 맵의 플레이어 캐릭터를 찾아옵니다.
+    if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+    {
+        // 플레이어의 사망 방송(OnPlayerDeath)에 내 함수(ShowGameOver)를 연결합니다.
+        PlayerChar->OnPlayerDeath.AddDynamic(this, &USTSUserWidget::ShowGameOver);
+    }
     // 게임 시작 시 바로 전투 시작을 알림 (테스트용)
     if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
     {
@@ -178,15 +183,6 @@ void USTSUserWidget::UpdateEnergyText(int32 CurrentEnergy, int32 MaxEnergy)
     }
 }
 
-void USTSUserWidget::UpdateBlockText(int32 CurrentBlock)
-{
-    if (BlockText)
-    {
-        // 방어도가 0이면 숨기거나 "방어도: 0"으로 표시
-        FString NewText = FString::Printf(TEXT("방어도: %d"), CurrentBlock);
-        BlockText->SetText(FText::FromString(NewText));
-    }
-}
 
 
 
@@ -215,10 +211,17 @@ void USTSUserWidget::UpdatePlayerHP(int32 CurrentHP, int32 MaxHP)
 
 void USTSUserWidget::ShowGameOver()
 {
+    UE_LOG(LogTemp, Error, TEXT("==== 2. UI에서 방송 수신 완료! 함수 진입 ===="));
     if (GameOverPanel)
     {
         // 숨겨뒀던 게임 오버 화면을 띄움
+        UE_LOG(LogTemp, Warning, TEXT("==== 3. 패널도 정상! 띄웁니다 ===="));
         GameOverPanel->SetVisibility(ESlateVisibility::Visible);
+    }
+    if (CombatUIPanel)
+    {
+        
+        CombatUIPanel->SetVisibility(ESlateVisibility::Collapsed);
     }
 
     // 더 이상 카드를 못 내게 클릭 막기
@@ -231,6 +234,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     APlayerController* PC = GetOwningPlayer();
     // 화살표 선 긋기 끄기
     bIsTargeting = false;
+    HideAoEPrediction();
 
     UE_LOG(LogTemp, Warning, TEXT("==== [디버그] NativeOnDrop 이 실행되었습니다! ===="));
 
@@ -323,6 +327,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
 
         // 플레이어 액션 큐에 공격 명령서 제출
         PlayerChar->EnqueueAction(NewCmd);
+        
     }
     else if (CardData.Type == FName("Defend"))
     {
@@ -336,13 +341,15 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
     }
     else if (CardData.Type == FName("Power"))
     {
-        // 파워는 애니메이션 없이 즉시 발동
+        
         if (CardData.StatusType == FName("STRENGTH") && GM)
             GM->AddStrength(CardData.StatusAmount);
+        PlayerChar->EnqueueAction(NewCmd);
+
     }
     else if (CardData.Type == FName("Skill"))
     {
-        // 스킬도 즉시 발동
+        
         if (CardData.BaseBlock > 0) PlayerChar->AddBlock(CardData.BaseBlock);
         if (CardData.StatusAmount > 0 && CardData.StatusType == FName("ENERGY") && GM)
         {
@@ -350,6 +357,7 @@ bool USTSUserWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEv
             UpdateEnergyText(GM->CurrentEnergy, GM->MaxEnergy);
         }
         if (CardData.DrawAmount > 0) AddCards(CardData.DrawAmount);
+        PlayerChar->EnqueueAction(NewCmd);
     }
 
     // 카드 버리기 (기존 코드 유지)
@@ -394,7 +402,7 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
 {
     Super::NativeOnDragOver(InGeometry, InDragDropEvent, InOperation);
     CurrentDragOp = InOperation;
-    USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
+    DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
     if (!DraggedCard) return true;
 
     FCardData CardData = DraggedCard->GetCardData();
@@ -489,7 +497,7 @@ bool USTSUserWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDr
     // -------------------------------------------------------------------------
     else if (CardData.Type == FName("Attack") && CardData.bIsAoE)
     {
-        bIsTargeting = true;
+        bIsTargeting = false;
 
         int32 ExpectedPlayerDamage = CardData.BaseDamage;
         if (ASTSGameMode* GM = Cast<ASTSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
@@ -703,8 +711,28 @@ int32 USTSUserWidget::NativePaint(const FPaintArgs& Args, const FGeometry& Allot
         // 시작점 (StartPoint): 카드가 있던 손패 중앙으로 고정
         // =========================================================================
         // 화면 정중앙(0.5f), 하단(0.9f)에 닻을 내립니다. 드래그해도 여긴 고정됩니다.
-        FVector2D StartPoint = FVector2D(AllottedGeometry.GetLocalSize().X * 0.5f, AllottedGeometry.GetLocalSize().Y * 0.9f);
+        //FVector2D StartPoint = FVector2D(AllottedGeometry.GetLocalSize().X * 0.5f, AllottedGeometry.GetLocalSize().Y * 0.9f);
+        FVector2D StartPoint;
 
+        if (DraggedCard)
+        {
+            // 1. 투명해진 원본 카드의 렌더링/위치 정보(Geometry)를 가져옵니다.
+            FGeometry CardGeometry = DraggedCard->GetCachedGeometry();
+
+            // 2. 카드 자체의 로컬 크기 절반을 구해서 카드의 '정중앙'을 찾습니다.
+            FVector2D CardLocalCenter = CardGeometry.GetLocalSize() * 0.5f;
+
+            // 3. 카드의 로컬 정중앙 좌표를 모니터 화면 기준 '절대 좌표(Absolute)'로 변환합니다.
+            FVector2D AbsoluteCardCenter = CardGeometry.LocalToAbsolute(CardLocalCenter);
+
+            // 4. 화면 절대 좌표를 현재 선을 그리고 있는 HUD(AllottedGeometry)의 로컬 좌표로 최종 변환합니다!
+            StartPoint = AllottedGeometry.AbsoluteToLocal(AbsoluteCardCenter);
+        }
+        else
+        {
+            // 안전장치: 카드를 찾지 못한 경우 (원래 있던 하단 중앙 코드)
+            StartPoint = FVector2D(AllottedGeometry.GetLocalSize().X * 0.5f, AllottedGeometry.GetLocalSize().Y * 0.9f);
+        }
         // =========================================================================
         // 도착점 (EndPoint): 적의 가슴팍 또는 마우스 커서
         // =========================================================================
@@ -789,12 +817,14 @@ void USTSUserWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UD
     if (CurrentHoveredEnemy)
     {
         CurrentHoveredEnemy->SetTargetingHighlight(false);
+        CurrentHoveredEnemy->ClearPredictionUI();
         CurrentHoveredEnemy = nullptr;
     }
 
     Super::NativeOnDragLeave(InDragDropEvent, InOperation);
     bIsTargeting = false;
     CurrentHoveredEnemy = nullptr;
+    DraggedCard = nullptr;
 }
 
 void USTSUserWidget::ShowAoEPrediction(int32 FinalDamage) 
@@ -834,7 +864,7 @@ void USTSUserWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragD
 {
     Super::NativeOnDragEnter(InGeometry, InDragDropEvent, InOperation);
 
-    USTSCardWidget* DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
+    DraggedCard = Cast<USTSCardWidget>(InOperation->Payload);
     if (!DraggedCard) return;
 
     FCardData CardData = DraggedCard->GetCardData();
@@ -852,4 +882,24 @@ void USTSUserWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragD
     }
 }
 
+void USTSUserWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
+
+    // 카드를 쓰지 않고 취소(패로 되돌림)했을 때도 무조건 물청소!
+    HideAoEPrediction();
+
+    // 혹시 타겟팅 중이던 단일 몬스터가 있다면 걔도 불 꺼줍니다.
+    if (CurrentHoveredEnemy)
+    {
+        CurrentHoveredEnemy->SetTargetingHighlight(false);
+        CurrentHoveredEnemy->ClearPredictionUI();
+        CurrentHoveredEnemy = nullptr;
+    }
+
+    bIsTargeting = false;
+    DraggedCard = nullptr;
+
+    UE_LOG(LogTemp, Warning, TEXT("카드 드래그 취소됨! 모든 UI 청소 완료."));
+}
 
