@@ -91,22 +91,22 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-	// 에디터에서 공격 몽타주를 넣을 칸
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	UAnimMontage* AttackMontage;
 
-	// 에디터에서 피격 몽타주를 넣을 칸
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation")
 	UAnimMontage* HitReactMontage;
 
-	// UI가 호출해 줄 공격 애니메이션 재생 함수
+	
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void PlayAttackAnim();
 
-	// UI가 호출해 줄 피격 애니메이션 재생 함수
+	
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void PlayHitReactAnim();
-	// 피격 이펙트
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
 	UParticleSystem* HitEffect;
 	
@@ -117,6 +117,8 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void PlayInPlaceAnimation(UAnimMontage* MontageToPlay, UNiagaraSystem* VFXToPlay);
+
+
 	// 잠시 데미지를 보관할 변수
 	UPROPERTY(BlueprintReadWrite, Category = "Combat")
 	int32 PendingDamage;
@@ -162,29 +164,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void HealPlayer(int32 HealAmount);
 
-	// 캐릭터가 광역 공격 중인지 기억하는 변수
+	
 	UPROPERTY(BlueprintReadWrite, Category = "Combat")
 	bool bIsAoEAttack = false;
 
-	// 광역 공격 시 데미지를 입힐 타겟 리스트 
+	
 	UPROPERTY(BlueprintReadWrite, Category = "Combat")
 	int32 PendingAoEDamage = 0;
 
-	// [완전 방어]
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
 	class USoundBase* BlockSound;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
 	class UNiagaraSystem* BlockVFX;
 
-	// [실드 파괴]
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
 	class USoundBase* ShieldBreakSound;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
 	class UNiagaraSystem* ShieldBreakVFX;
 
-	// [맨몸 피격]
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
 	class USoundBase* FleshHitSound;
 
@@ -195,18 +197,18 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat|UI")
 	void OnShieldBroken();
 
-	// 액션 큐와 상태 변수
+	
 	TArray<FActionCommand> ActionQueue;
 	bool bIsProcessingAction = false;
 
-	// 큐 관리 함수들
+	
 	void EnqueueAction(const FActionCommand& NewAction);
 	void ProcessNextAction();
 
 	UFUNCTION(BlueprintCallable) 
 	void CompleteCurrentAction();
 
-	// 현재 진짜로 애니메이션이나 이동이 실행 중인지 확인하는 플래그
+	
 	bool bIsExecutingAction = false;
 
 

@@ -139,7 +139,7 @@ void ASTSCharacter::Look(const FInputActionValue& Value)
 
 void ASTSCharacter::PlayAttackAnim()
 {
-	// 몽타주가 세팅되어 있다면 재생해라!
+	
 	if (AttackMontage)
 	{
 		PlayAnimMontage(AttackMontage);
@@ -148,42 +148,42 @@ void ASTSCharacter::PlayAttackAnim()
 
 void ASTSCharacter::PlayHitReactAnim()
 {
-	// 몽타주가 세팅되어 있다면 재생해라!
+	
 	if (AttackMontage)
 	{
 		PlayAnimMontage(HitReactMontage);
 	}
 }
 
+// 데미지 계산과 상태이상 적용을 담당하는 함수
 void ASTSCharacter::ExecuteHit()
 {
-	// 플레이어(나)의 약화 상태 확인 및 최종 데미지 계산
+	
 	float FinalActualDamage = PendingDamage;
 
-	// 나에게 컴포넌트가 있는지, 그리고 약화 스택이 있는지 물어봅니다
+	
 	if (UStatusEffectComponent* MyStatusComp = FindComponentByClass<UStatusEffectComponent>())
 	{
 		int32 WeakStacks = MyStatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Weak);
 		if (WeakStacks > 0)
 		{
-			// 슬레이 더 스파이어 기준 약화는 데미지 25% 감소 (0.75배)
+			
 			FinalActualDamage *= 0.75f;
-			UE_LOG(LogTemp, Warning, TEXT("[약화 적용] 플레이어가 약화 상태라 데미지가 %f 로 감소했습니다!"), FinalActualDamage);
 		}
 	}
 
-	// 광역 공격일 경우
+	
 	if (bIsAoEAttack && FinalActualDamage > 0)
 	{
 		TArray<AActor*> FoundEnemies;
-		// 태그 검사 없이 맵의 모든 적을 가져옴
+		
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASTSEnemyCharacter::StaticClass(), FoundEnemies);
 
 		for (AActor* Actor : FoundEnemies)
 		{
 			if (ASTSEnemyCharacter* Enemy = Cast<ASTSEnemyCharacter>(Actor))
 			{
-				// 깎인 최종 데미지로 때리기
+				
 				UGameplayStatics::ApplyDamage(
 					Enemy,
 					FinalActualDamage,
@@ -192,31 +192,29 @@ void ASTSCharacter::ExecuteHit()
 					UDamageType::StaticClass()
 				);
 
-				// 광역 공격의 상태 이상
+				
 				if (PendingStatusAmount > 0)
 				{
 					EStatusEffectType TypeToApply = EStatusEffectType::None;
 					if (PendingStatusType == FName("Vulnerable")) TypeToApply = EStatusEffectType::Vulnerable;
-					else if (PendingStatusType == FName("Weak")) TypeToApply = EStatusEffectType::Weak; // 추후 광역 약화를 위해 추가
+					else if (PendingStatusType == FName("Weak")) TypeToApply = EStatusEffectType::Weak; 
 
 					if (TypeToApply != EStatusEffectType::None)
 					{
 						if (UStatusEffectComponent* StatusComp = Enemy->FindComponentByClass<UStatusEffectComponent>())
 						{
 							StatusComp->AddStatusEffect(TypeToApply, PendingStatusAmount);
-							UE_LOG(LogTemp, Warning, TEXT("[광역] %s 컴포넌트에 %s %d 스택 부여!"), *Enemy->GetName(), *PendingStatusType.ToString(), PendingStatusAmount);
 						}
 					}
 				}
 			}
 		}
-		UE_LOG(LogTemp, Warning, TEXT("모든 적에게 %f 데미지를 입혔습니다!"), FinalActualDamage);
 	}
 
-	// 단일 공격일 경우
+	
 	else if (CurrentTarget && FinalActualDamage > 0)
 	{
-		// 깎인 최종 데미지로 때리기
+		
 		UGameplayStatics::ApplyDamage(
 			CurrentTarget,
 			FinalActualDamage,
@@ -238,16 +236,14 @@ void ASTSCharacter::ExecuteHit()
 					if (UStatusEffectComponent* StatusComp = Enemy->FindComponentByClass<UStatusEffectComponent>())
 					{
 						StatusComp->AddStatusEffect(TypeToApply, PendingStatusAmount);
-						UE_LOG(LogTemp, Warning, TEXT("[단일] %s 컴포넌트에 %s %d 스택 부여!"), *Enemy->GetName(), *PendingStatusType.ToString(), PendingStatusAmount);
 					}
 				}
 			}
 		}
-		UE_LOG(LogTemp, Warning, TEXT("적에게 %f 데미지를 입혔습니다."), FinalActualDamage);
 		
 	}
 
-	// 초기화
+	
 	PendingStatusAmount = 0;
 	PendingStatusType = NAME_None;
 }
@@ -255,68 +251,65 @@ void ASTSCharacter::ExecuteHit()
 void ASTSCharacter::AddBlock(int32 Amount)
 {
 	CurrentBlock += Amount;
-	OnBlockChanged.Broadcast(CurrentBlock); // 방어도 UI 업데이트 방송
+	OnBlockChanged.Broadcast(CurrentBlock); 
 }
 
+// 데미지를 받아서 방어도로 먼저 막고, 남은 데미지는 체력에서 깎는 함수
 void ASTSCharacter::TakePlayerDamage(int32 Damage)
 {
 	int32 ActualDamage = Damage;
 
-	// 방어도가 있다면 먼저 깎기
+	// 방어도가 0보다 크면 먼저 방어도로 막습니다
 	if (CurrentBlock > 0)
 	{
 		if (CurrentBlock >= ActualDamage)
 		{
-			// 방어도가 충분해서 다 막음
+			
 			CurrentBlock -= ActualDamage;
-			// 소리 재생
+			
 			UGameplayStatics::PlaySoundAtLocation(this, BlockSound, GetActorLocation());
-			// 방어 파티클 재생
+			
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BlockVFX, GetActorLocation());
 
 			ActualDamage = 0;
-			UE_LOG(LogTemp, Warning, TEXT("방어도로 완벽히 막았습니다! (남은 방어도: %d)"), CurrentBlock);
 		}
 		else
 		{
-			// 방어도가 깨지고 데미지가 관통함
+			
 			ActualDamage -= CurrentBlock;
-			// 소리 재생
+			
 			UGameplayStatics::PlaySoundAtLocation(this, ShieldBreakSound, GetActorLocation());
-			//UI 애니메이션 재생
+			
 			OnShieldBroken();
-			// 파티클 재생
-			//UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ShieldBreakVFX, GetActorLocation());
+			
 
 
-			UE_LOG(LogTemp, Warning, TEXT("방어도가 파괴되고, %d의 피해가 관통했습니다!"), ActualDamage);
 			CurrentBlock = 0;
 		}
 
-		// 방어도 UI 업데이트 방송
+		
 		OnBlockChanged.Broadcast(CurrentBlock);
 	}
 
-	// 남은 데미지를 체력에서 깎기
+	// 남은 데미지가 0보다 크면 체력에서 깎습니다
 	if (ActualDamage > 0)
 	{
 		CurrentHealth -= ActualDamage;
-		UE_LOG(LogTemp, Error, TEXT("플레이어가 %d의 피해를 입었습니다! (남은 체력: %d / %d)"), ActualDamage, CurrentHealth, MaxHealth);
 
-		// 소리 재생 
+		
 		UGameplayStatics::PlaySoundAtLocation(this, FleshHitSound, GetActorLocation());
-		//파티클 재생
+		
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BloodVFX, GetActorLocation());
 
 		if (CurrentHealth <= 0)
 		{
 			CurrentHealth = 0;
-			//UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
+			
 
 		}
-		// 체력 UI 업데이트 방송
+		
 		OnHealthChanged.Broadcast(CurrentHealth);
-		//피격 애니메이션 재생 
+		
 		if (ASTSCharacter* PlayerChar = Cast<ASTSCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
 		{
 			if (PlayerChar->HitReactMontage)
@@ -325,7 +318,7 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 			}
 			if (PlayerChar->HitEffect)
 			{
-				// 이펙트를 내 몸통 위치(GetActorLocation)에서 펑 터뜨립니다!
+				
 				UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), PlayerChar->HitEffect, PlayerChar->GetActorLocation());
 			}
 		}
@@ -337,64 +330,64 @@ void ASTSCharacter::TakePlayerDamage(int32 Damage)
 		// 사망 처리
 		if (CurrentHealth <= 0)
 		{
-			//UE_LOG(LogTemp, Error, TEXT("플레이어 사망! 게임 오버!"));
-			// 게임 오버 방송
-			UE_LOG(LogTemp, Error, TEXT("==== 1. 플레이어 체력 0! 방송 시작 ===="));
+			
+			
 			OnPlayerDeath.Broadcast();
 		}
 	}
 }
 
+// 체력을 회복시키는 함수
 void ASTSCharacter::HealPlayer(int32 HealAmount)
 {
-	// 체력을 회복시키고, MaxHealth를 넘지 않게 잘라줍니다
+	
 	CurrentHealth = FMath::Clamp(CurrentHealth + HealAmount, 0, MaxHealth);
 
-	// 체력 UI 업데이트 방송
+	
 	OnHealthChanged.Broadcast(CurrentHealth);
 }
 
-
+// 행동 명령서를 받아서 큐에 넣고, 캐릭터가 놀고 있으면 즉시 실행하는 함수
 void ASTSCharacter::EnqueueAction(const FActionCommand& NewAction)
 {
-	// 명령서를 큐에 넣습니다.
+	
 	ActionQueue.Add(NewAction);
 
-	// 큐에 잘 들어왔는가지 로그로 확인
-	UE_LOG(LogTemp, Warning, TEXT("큐에 명령 접수됨! 현재 대기열 수: %d"), ActionQueue.Num());
+	
+	
 
 	if (!bIsProcessingAction)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("캐릭터가 놀고 있으므로 즉시 실행합니다!"));
+		
 		ProcessNextAction();
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[경고] 캐릭터가 아직 이전 행동을 끝내지 않아 대기합니다! (Complete 호출 누락 의심)"));
 	}
 }
 
+// 큐의 맨 앞 행동을 꺼내서 실행하는 함수
 void ASTSCharacter::ProcessNextAction()
 {
 
-	UE_LOG(LogTemp, Warning, TEXT("현재 큐 잔량: %d"), ActionQueue.Num());
-	// 큐가 비어있으면 퇴근
+	
+	
 	if (ActionQueue.Num() == 0)
 	{
-		UE_LOG(LogTemp, Log, TEXT("큐가 비었습니다. Idle 상태로 복귀합니다."));
+		
 		bIsProcessingAction = false;
-		bIsExecutingAction = false; // 일 끝남
+		bIsExecutingAction = false; 
 		return;
 	}
 	if (bIsExecutingAction) return;
-	// 일 시작
+	
 	bIsProcessingAction = true;
-	bIsExecutingAction = true; // 이제부터 진짜 일 시작!
+	bIsExecutingAction = true;
 
-	// 큐의 맨 앞(0번) 명령서를 꺼내서 읽습니다.
+	
 	FActionCommand CurrentAction = ActionQueue[0];
 
-	// 캐릭터의 상태를 명령서대로 세팅합니다.
+	
 	bIsAoEAttack = CurrentAction.bIsAoE;
 	CurrentTarget = CurrentAction.TargetEnemy;
 	PendingDamage = CurrentAction.Damage;
@@ -407,7 +400,7 @@ void ASTSCharacter::ProcessNextAction()
 		if (CurrentAction.bIsAoE)
 		{
 			PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
-			//CompleteCurrentAction();
+			
 		}
 		else
 		{
@@ -416,31 +409,30 @@ void ASTSCharacter::ProcessNextAction()
 	}
 	else if (CurrentAction.ActionType == FName("Defend"))
 	{
-		// 방어 애니메이션은 제자리에서 재생
+		
 		PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
-		//CompleteCurrentAction();
+		
 	}
 	else
 	{
 
 		PlayInPlaceAnimation(CurrentAction.Montage, CurrentAction.VFX);
-		// 애니메이션이 없는 기타 카드라면 즉시 넘김
-		//CompleteCurrentAction();
+		
 	}
 }
 
+// 행동이 끝났다고 보고하는 함수. 
 void ASTSCharacter::CompleteCurrentAction()
 {
 
-	UE_LOG(LogTemp, Log, TEXT("액션 완료 보고 접수됨."));
 	// 만약 실행 중인 액션이 없는데 호출됐다면 무시한다
 	if (!bIsExecutingAction)
 	{
-		UE_LOG(LogTemp, Error, TEXT("오류: 실행 중인 액션이 없는데 Complete가 호출됨!"));		return;
+				return;
 	}
-	// 플래그를 끄고 큐를 정리합니다.
+	
 	bIsExecutingAction = false;
-	// 방금 끝낸 행동을 큐에서 지워버립니다.
+	
 	if (ActionQueue.Num() > 0)
 	{
 		ActionQueue.RemoveAt(0);

@@ -22,13 +22,13 @@
 void USTSCardWidget::UpdateCardDesign(const FCardData& Data)
 {   
     CurrentCardData = Data;
-    // 이름 설정
+    
     if (CardName)
     {
         CardName->SetText(Data.CardName); 
     }
 
-    //비용 설정 (int를 Text로 변환)
+   
    if (Cost)
     {
         Cost->SetText(FText::AsNumber(Data.Cost));
@@ -37,18 +37,18 @@ void USTSCardWidget::UpdateCardDesign(const FCardData& Data)
    {
        FString FinalDesc = Data.CardDescription.ToString();
 
-       // 공격 카드라면 {Damage}를 <White>숫자</>로 변경
+      
        FString DamageReplacement = FString::Printf(TEXT("<White>%d</>"), Data.BaseDamage);
        FinalDesc = FinalDesc.Replace(TEXT("{Damage}"), *DamageReplacement);
 
-       // 방어 카드라면 {Block}을 <White>숫자</>로 변경
+      
        FString BlockReplacement = FString::Printf(TEXT("<White>%d</>"), Data.BaseBlock);
        FinalDesc = FinalDesc.Replace(TEXT("{Block}"), *BlockReplacement);
 
      
      
 
-       // 최종 적용
+      
        CardDescription->SetText(FText::FromString(FinalDesc));
    }
 
@@ -66,78 +66,81 @@ void USTSCardWidget::UpdateCardDesign(const FCardData& Data)
 
     if (CardType)
     {
-        FText TypeText_KR; // 화면에 띄울 한글 텍스트 변수
-        FSlateColor TypeColor; // 화면에 띄울 텍스트 색상 변수
+        FText TypeText_KR; 
+        FSlateColor TypeColor; 
 
         if (Data.Type == FName("Attack"))
         {
             TypeText_KR = FText::FromString(TEXT("공격"));
-            // 붉은색 (강렬한 타격 느낌)
+            
             TypeColor = FSlateColor(FLinearColor(0.9f, 0.2f, 0.2f, 1.0f));
         }
         else if (Data.Type == FName("Skill"))
         {
             TypeText_KR = FText::FromString(TEXT("스킬"));
-            // 청록색/초록색 (보조 및 기술 느낌)
+           
             TypeColor = FSlateColor(FLinearColor(0.2f, 0.7f, 0.4f, 1.0f));
         }
         else if (Data.Type == FName("Defend"))
         {
             TypeText_KR = FText::FromString(TEXT("방어"));
-            // 파란색 (단단한 방패 느낌)
+             
             TypeColor = FSlateColor(FLinearColor(0.3f, 0.5f, 0.9f, 1.0f));
         }
         else if (Data.Type == FName("Power"))
         {
             TypeText_KR = FText::FromString(TEXT("파워"));
-            // 금색/보라색 (희귀하고 강력한 버프 느낌)
+            
             TypeColor = FSlateColor(FLinearColor(0.9f, 0.7f, 0.1f, 1.0f));
         }
         else
         {
             TypeText_KR = FText::FromString(TEXT("알 수 없음"));
-            // 기본 텍스트 색상 (밝은 회색)
+            
             TypeColor = FSlateColor(FLinearColor(0.7f, 0.7f, 0.7f, 1.0f));
         }
 
-        // 최종적으로 번역된 한글 텍스트와 색상을 위젯에 적용
+        
         CardType->SetText(TypeText_KR);
-        CardType->SetColorAndOpacity(TypeColor); // 여기서 색상이 적용됩니다
+        CardType->SetColorAndOpacity(TypeColor); 
     }
 
 }
+
+//마우스를 카드 위에 올렸을 때 확대되고, ZOrder가 올라가서 다른 카드보다 위에 보이도록 합니다.
 void USTSCardWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
     Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
 
-    // 크기 키우기 
+    
     SetRenderScale(FVector2D(1.2f, 1.2f));
 
-    // ZOrder 바꾸기 (슬롯을 가져와서 변경)
+    
     if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
     {
-        CanvasSlot->SetZOrder(1); // 제일 앞으로
+        CanvasSlot->SetZOrder(1); 
     }
 }
 
+// 마우스가 카드에서 나갔을 때 원래 크기로 돌아가고, ZOrder도 원래대로 낮춥니다.
 void USTSCardWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 {
     Super::NativeOnMouseLeave(InMouseEvent);
 
-    // 크기 원상복구
+    
     SetRenderScale(FVector2D(1.0f, 1.0f));
 
-    // ZOrder 원상복구
+    
     if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
     {
-        CanvasSlot->SetZOrder(0); //원상복귀
+        CanvasSlot->SetZOrder(0); 
     }
 }
 
-
+// 마우스 버튼을 눌렀을 때 드래그를 시작할지, 아니면 강화 모드에서 클릭 이벤트로 처리할지 결정합니다.
 FReply USTSCardWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    //드래그를 감지하지 않고 클릭만 처리!
+    //드래그를 감지하지 않고 클릭만 처리
     if (bIsSmithingMode)
     {
         
@@ -149,15 +152,18 @@ FReply USTSCardWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, cons
 
 
 
-    // 왼쪽 마우스 버튼 감지
+    
     else if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
     {
-        // 드래그 감지 시작
+        
         return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);
     }
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
+// 드래그가 감지되었을 때 실행되는 함수입니다. 
+// UMG DragVisual이 카드 UI 충돌을 일으키는 문제를 해결하기 위해,
+// 기본 드래그 비주얼은 사용하지 않고, 가짜 카드 위젯을 만들어서 드래그 비주얼로 활용합니다. 
 void USTSCardWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 {
     Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
@@ -203,11 +209,11 @@ void USTSCardWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPo
 }
 
 
-
+// 카드의 대미지 텍스트를 계산된 대미지로 갱신하는 함수입니다. 리치 텍스트 포맷을 활용하여 숫자만 업데이트합니다.
 void USTSCardWidget::UpdateDynamicDamageText(int32 CalculatedDamage)
 {
-    // 리치 텍스트 포맷을 사용하여 대미지 숫자만 갱신
-    // "피해를 <Red>9</> 줍니다." 처럼 색상 태그를 넣으면 더 직관적입니다.
+    
+   
     FString NewDesc = FString::Printf(TEXT("피해를 <%s>%d</> 줍니다."), TEXT("Default"), CalculatedDamage);
     CardDescription->SetText(FText::FromString(NewDesc));
 }
@@ -223,7 +229,7 @@ FText USTSCardWidget::GetCardNameText() const
 }
 
 
-
+// 드래그가 취소되었을 때 실행되는 함수입니다. 여기서 가짜 드래그 비주얼을 제거하고, 원래 카드를 다시 보이게 합니다.
 void USTSCardWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
     Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
@@ -241,47 +247,47 @@ void USTSCardWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent
     this->SetVisibility(ESlateVisibility::Visible);
 }
 
-
+// 카드의 최종 데미지를 계산하는 함수입니다. 
 int32 USTSCardWidget::CalculateFinalDamage(int32 InBaseDamage, int32 InPlayerStrength, bool bIsTargetVulnerable, bool bIsPlayerWeak)
 {
-    // 합연산 (기본 데미지 + 힘)
-    // 힘이 마이너스면 자연스럽게 데미지가 깎입니다.
+    
     float ExpectedDamage = (float)(InBaseDamage + InPlayerStrength);
 
     // 최소 데미지는 0으로 보정
     ExpectedDamage = FMath::Max(0.0f, ExpectedDamage);
 
-    //  곱연산 1 (적 취약 적용, 1.5배)
+   
     if (bIsTargetVulnerable)
     {
         ExpectedDamage = FMath::FloorToFloat(ExpectedDamage * 1.5f);
     }
 
-    // 곱연산 2 (플레이어 약화 적용, 0.75배)
+    
     if (bIsPlayerWeak)
     {
         ExpectedDamage = FMath::FloorToFloat(ExpectedDamage * 0.75f);
     }
 
-    // 최종 정수로 변환하여 반환
+    
     return FMath::FloorToInt(ExpectedDamage);
 }
 
+// 타겟과 상태효과를 반영해 카드 설명의 데미지 텍스트를 갱신
 void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* TargetEnemy)
 {
     CurrentTargetEnemy = TargetEnemy;
    
-    // 리치 텍스트 블록이 바인딩 안 되었으면 리턴
+    
     if (!CardDescription) return;
 
-    //  내 상태 / 적 상태 가져오기
+    
     int32 MyStrength = 0;
     bool bAmIWeak = false;
     if (ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
     {
         if (UStatusEffectComponent* PlayerStatusComp = PlayerChar->FindComponentByClass<UStatusEffectComponent>())
         {
-            // 내 컴포넌트 맵에서 약화(Weak) 스택을 찾습니다.
+            
             int32 WeakStacks = PlayerStatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Weak);
             bAmIWeak = (WeakStacks > 0);
         }
@@ -290,50 +296,50 @@ void USTSCardWidget::UpdateTargetAndRefreshText(class ASTSEnemyCharacter* Target
     {
         MyStrength = GM->CurrentStrength;
     }
-    //bool bIsTargetVuln = (CurrentTargetEnemy && CurrentTargetEnemy->VulnerableStacks > 0);
+    
     bool bIsTargetVuln = false;
     int32 VulStacks = 0; // 로그용 변수
     if (CurrentTargetEnemy)
     {
         
-        // 적이 상태 이상 컴포넌트를 달고 있는지 확인
+        
         if (UStatusEffectComponent* StatusComp = CurrentTargetEnemy->FindComponentByClass<UStatusEffectComponent>())
         {
-            // 컴포넌트의 Map에서 취약 수치를 꺼내옵니다.
+            
             VulStacks = StatusComp->CurrentStatusMap.FindRef(EStatusEffectType::Vulnerable);
             bIsTargetVuln = (VulStacks > 0);
         }
 
-        UE_LOG(LogTemp, Warning, TEXT("타겟 적 이름: %s, 컴포넌트 취약 스택: %d"), *CurrentTargetEnemy->GetName(), VulStacks);
+        
 
         
     }
 
 
-    // 최종 데미지 계산
+    
     int32 FinalDamage = CalculateFinalDamage(CurrentCardData.BaseDamage, MyStrength, bIsTargetVuln, bAmIWeak);
 
-    // 원본 설명 텍스트 가져오기 (예: "피해를 {Damage} 줍니다.")
+    
     FString FinalDesc = CurrentCardData.CardDescription.ToString();
 
     // 데미지 증감에 따라 리치 텍스트 색상 태그 결정
-    FString ColorTag = TEXT("White"); // 기본 하얀색
+    FString ColorTag = TEXT("White"); 
     if (FinalDamage > CurrentCardData.BaseDamage)
     {
-        ColorTag = TEXT("Orange"); // 버프: 주황색
+        ColorTag = TEXT("Orange"); 
     }
     else if (FinalDamage < CurrentCardData.BaseDamage)
     {
-        ColorTag = TEXT("Red"); // 디버프: 빨간색
+        ColorTag = TEXT("Red"); 
     }
 
-    // 변경할 문자열 만들기 (예: "<Orange>8</>")
+   
     FString DamageReplacement = FString::Printf(TEXT("<%s>%d</>"), *ColorTag, FinalDamage);
 
-    // "{Damage}" 글자를 방금 만든 색상 숫자로 통째로 바꿔치기
+   
     FinalDesc = FinalDesc.Replace(TEXT("{Damage}"), *DamageReplacement);
 
-    // 리치 텍스트 위젯에 한 방에 적용!
+   
     CardDescription->SetText(FText::FromString(FinalDesc));
     
 }

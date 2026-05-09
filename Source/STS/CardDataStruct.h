@@ -44,25 +44,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName EffectId;
 
-	// 상태이상 타입
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName StatusType;
 
-	// 상태이상 스택 수치
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 StatusAmount;
 
-	// 광역기(AoE) 여부 체크! (true면 전체 공격, false면 단일 공격)
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsAoE;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bIsRewardable = true; // 보상으로 등장할 수 있는지 체크
+	bool bIsRewardable = true; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	FName UpgradedCardID;
 
-	//카드 드로우 수치
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 DrawAmount;
 
@@ -70,11 +70,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card Data")
 	int32 HitCount = 1;
 
-	/** 카드 사용 시 재생할 캐릭터 애니메이션 */
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
 	TSoftObjectPtr<UAnimMontage> CardMontage;
 
-	/** 카드 사용 시 타겟에게 나타날 이펙트 (나이아가라) */
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
 	TSoftObjectPtr<class UNiagaraSystem> CardVFX;
 

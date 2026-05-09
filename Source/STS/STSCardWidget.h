@@ -38,27 +38,27 @@ protected:
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UTextBlock* CardType;
 
-    // 마우스가 위젯 영역에 들어왔을 때 
+   
     virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
-    // 마우스가 위젯 영역에서 나갔을 때 
+    
     virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
-    // (미리 준비) 마우스 버튼을 눌렀을 때
+    
     virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
    
-    //드래그가 감지되었을 때 실행 
+    
     virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 
     FCardData CurrentCardData;
-   // void NativeTick(const FGeometry& MyGeometry, float InDeltaTime);
+  
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
     UPROPERTY()
     class ASTSEnemyCharacter* CurrentTargetEnemy;
 
 public:
-    // 데이터를 받아서 UI를 갱신하는 함수
+    
     UFUNCTION(BlueprintCallable)
     void UpdateCardDesign(const FCardData& Data);
 
@@ -73,7 +73,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Card State")
     bool bIsSmithingMode = false;
 
-    // 블루프린트에서 구현할 이벤트 (카드가 대장간에서 클릭되었을 때 발동)
+	// 카드가 대장간에서 클릭되었을 때 블루프린트에서 처리할 이벤트
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
     void OnCardClickedForSmithing();
 
@@ -81,7 +81,7 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Animation")   
     void Anim_FlyToLocation(FVector2D TargetPosition, bool bIsDiscarding);
 
-    // 데미지를 계산해주는 전용 함수
+    
     UFUNCTION(BlueprintCallable, Category = "Card|Calculate")
     int32 CalculateFinalDamage(int32 InBaseDamage, int32 InPlayerStrength, bool bIsTargetVulnerable, bool bIsPlayerWeak);
 
@@ -89,7 +89,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Card|Targeting")
     void UpdateTargetAndRefreshText(class ASTSEnemyCharacter* TargetEnemy);
 
-    // 드래그 비주얼로 사용할 래퍼 클래스
+    
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Drag")
     TSubclassOf<class UUserWidget> DragVisualClass;
 

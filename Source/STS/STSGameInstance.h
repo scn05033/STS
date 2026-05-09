@@ -15,11 +15,11 @@ public:
     UPROPERTY()
     UAudioComponent* BackgroundMusicPlayer;
 
-    // 블루프린트에서 BGM을 트는 함수
+   
     UFUNCTION(BlueprintCallable, Category = "BGM")
     void PlayBackgroundMusic(USoundBase* MusicToPlay);
 
-    // 블루프린트에서 BGM을 페이드 아웃/중지하는 함수
+    
     UFUNCTION(BlueprintCallable, Category = "BGM")
     void StopBackgroundMusic(float FadeOutDuration);
 };
